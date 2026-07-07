@@ -26,7 +26,7 @@
         </button>
         <a href="#model">模型</a>
         <a href="#console">模拟</a>
-        <a href="#case">案例</a>
+        <a href="#case">建议</a>
         <a href="#decision">决策</a>
       </nav>
       <a class="github-pill" href="#console">
@@ -84,7 +84,7 @@
             <h2>形成避难设施补短板的优先级排序，支撑专项规划、项目库和近期实施计划。</h2>
             <div class="black-actions">
               <a href="#decision">进入方案</a>
-              <a href="#case">案例图集</a>
+              <a href="#case">规划建议</a>
             </div>
           </article>
         </div>
@@ -289,26 +289,46 @@
         </div>
       </section>
 
-      <section class="case" id="case">
+      <section class="case insight-lab" id="case">
         <div class="case-head">
-          <h2>超大城市供需错配识别</h2>
-          <p>案例库用于比较不同城市的避难资源供给、灾时动态需求和设施补短板强度。</p>
+          <h2>错配诊断与规划建议</h2>
+          <p>将当前推演结果转成片区判断、设施配置和实施时序，并支持继续追问。</p>
         </div>
-        <div class="case-grid">
-          <article class="case-card atlas">
-            <img src="./assets/project/city-atlas.jpg" alt="超大城市应急避难场所供需匹配空间分布小图集" />
+        <div class="advisor-board">
+          <article class="advisor-status">
+            <span class="advisor-label">当前结果</span>
+            <strong data-advice-city>成都</strong>
+            <p data-advice-context>运行当前视图后，系统读取供需错配结果并形成规划建议。</p>
+            <div class="advisor-facts">
+              <span><i class="ph ph-pulse"></i><b data-advice-view>综合</b></span>
+              <span><i class="ph ph-grid-four"></i><b data-advice-grid>169x239</b></span>
+              <span><i class="ph ph-warning-diamond"></i><b data-advice-status>待运行</b></span>
+            </div>
           </article>
-          <article class="case-card finding">
-            <span>核心格局</span>
-            <h3>供需匹配呈现内缺外盈。</h3>
-            <p>核心区集中性匮乏，郊区分散性冗余，匮乏区的流入人口高于冗余区。</p>
+
+          <article class="advice-report">
+            <div class="advice-head">
+              <span>结构化建议</span>
+              <button type="button" data-generate-advice>读取当前结果</button>
+            </div>
+            <div class="advice-output is-pending" data-advice-output>
+              <p>先在上方选择城市和结果视图，点击运行推演后生成本次规划建议。</p>
+            </div>
           </article>
-          <article class="case-card chart">
-            <img src="./assets/project/cost-benefit.jpg" alt="多城市成本与收益构成图" />
-          </article>
-          <article class="case-card metric">
-            <strong>1.67 亿人</strong>
-            <span>涉及供需错配区域的人口规模</span>
+
+          <article class="advice-query">
+            <div>
+              <span>追问</span>
+              <h3>把结果转成规划语言</h3>
+            </div>
+            <form data-advice-form>
+              <label for="adviceQuestion">输入问题</label>
+              <textarea id="adviceQuestion" data-advice-input rows="4" placeholder="例如：哪些片区应优先纳入近期建设项目？"></textarea>
+              <button type="submit">提交问题</button>
+            </form>
+            <div class="advice-answer" data-advice-answer>
+              <p>运行推演后，可围绕优先级、设施类型、平急两用和实施时序继续询问。</p>
+            </div>
           </article>
         </div>
       </section>
