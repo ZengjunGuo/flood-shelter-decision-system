@@ -11,6 +11,7 @@ const gridDisplay = document.querySelector("[data-grid-display]");
 const igpDisplay = document.querySelector("[data-igp-display]");
 const simForm = document.querySelector("[data-sim-form]");
 const simViewButtons = document.querySelectorAll("[data-sim-view]");
+const simIdle = document.querySelector("[data-sim-idle]");
 const simOutput = document.querySelector("[data-sim-output]");
 const activeCity = document.querySelector("[data-active-city]");
 const activeView = document.querySelector("[data-active-view]");
@@ -25,12 +26,14 @@ const analysisSteps = document.querySelector("[data-analysis-steps]");
 const analysisCells = document.querySelector("[data-analysis-cells]");
 const analysisRatio = document.querySelector("[data-analysis-ratio]");
 const analysisIgp = document.querySelector("[data-analysis-igp]");
+const idleCity = document.querySelector("[data-idle-city]");
+const idleGrid = document.querySelector("[data-idle-grid]");
+const idleIgp = document.querySelector("[data-idle-igp]");
 
-const IDLE_IMAGE = "./assets/project/simulation-idle.png";
 const IGP_LABEL = "本地5x5 / 外来3x3";
-const IGP_COMPACT = "5x5 / 3x3";
+const IGP_COMPACT = "5x5/3x3";
 const MAX_STEP = 49;
-const STEP_INTERVAL_MS = 122;
+const STEP_INTERVAL_MS = 185;
 
 const cities = [
   { slug: "Beijing", name: "北京", ratio: "5 : 6", grid: "202 : 262" },
@@ -191,28 +194,41 @@ function syncReadout(city) {
   if (analysisCells) analysisCells.textContent = cells ? formatNumber(cells) : "未定";
   if (analysisRatio) analysisRatio.textContent = compactPair(ratioValue(city));
   if (analysisIgp) analysisIgp.textContent = IGP_COMPACT;
+  if (idleCity) idleCity.textContent = city.name;
+  if (idleGrid) idleGrid.textContent = gridDisplayValue(city);
+  if (idleIgp) idleIgp.textContent = IGP_LABEL;
 }
 
 function updateSimMedia({ restart = false } = {}) {
   const city = currentCity();
-  if (!simOutput) {
+  if (!simOutput && !simIdle) {
     syncReadout(city);
     return;
   }
 
   if (!hasRun) {
     stopStepTicker();
-    simOutput.src = IDLE_IMAGE;
-    simOutput.alt = `${city.name}模型运行前的城市内涝避难需求静态底图`;
-    simOutput.classList.add("is-idle");
+    if (simIdle) {
+      simIdle.hidden = false;
+    }
+    if (simOutput) {
+      simOutput.hidden = true;
+      simOutput.removeAttribute("src");
+      simOutput.alt = "";
+    }
     syncReadout(city);
     return;
   }
 
   const mediaPath = simMediaPath(city, selectedSimView);
-  simOutput.src = restart ? `${mediaPath}?t=${Date.now()}` : mediaPath;
-  simOutput.alt = `${city.name}灾时人群移动${currentViewLabel()}视图`;
-  simOutput.classList.remove("is-idle");
+  if (simIdle) {
+    simIdle.hidden = true;
+  }
+  if (simOutput) {
+    simOutput.hidden = false;
+    simOutput.src = restart ? `${mediaPath}?t=${Date.now()}` : mediaPath;
+    simOutput.alt = `${city.name}灾时人群移动${currentViewLabel()}视图`;
+  }
   startStepTicker();
   syncReadout(city);
 }
@@ -253,7 +269,11 @@ simViewButtons.forEach((button) => {
       item.classList.toggle("is-selected", selected);
       item.setAttribute("aria-pressed", String(selected));
     });
-    updateSimMedia({ restart: hasRun });
+    if (hasRun) {
+      updateSimMedia({ restart: true });
+      return;
+    }
+    syncReadout(currentCity());
   });
 });
 

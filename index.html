@@ -199,10 +199,6 @@
               <label>信息感知范围</label>
               <output data-igp-display>本地5x5 / 外来3x3</output>
             </div>
-            <div class="field">
-              <label>降雨情景</label>
-              <output>百年一遇</output>
-            </div>
             <div class="sim-view-switch" role="group" aria-label="结果视图">
               <button class="is-selected" type="button" data-sim-view="combined">综合</button>
               <button type="button" data-sim-view="agent">人群轨迹</button>
@@ -226,7 +222,49 @@
               </div>
             </div>
             <figure class="sim-media">
-              <img class="is-idle" data-sim-output src="./assets/project/simulation-idle.png" alt="成都市模型运行前的城市内涝避难需求静态底图" />
+              <div class="sim-idle-panel" data-sim-idle role="img" aria-label="模型运行前的技术路线图">
+                <div class="idle-head">
+                  <span>待运行</span>
+                  <strong>动态需求驱动的供需匹配流程</strong>
+                </div>
+                <div class="idle-route">
+                  <article>
+                    <i class="ph ph-cloud-rain"></i>
+                    <span>内涝情景</span>
+                    <strong>百年一遇</strong>
+                  </article>
+                  <article>
+                    <i class="ph ph-person-simple-run"></i>
+                    <span>人群响应</span>
+                    <strong>移动方向</strong>
+                  </article>
+                  <article>
+                    <i class="ph ph-squares-four"></i>
+                    <span>供需匹配</span>
+                    <strong>1km 网格</strong>
+                  </article>
+                  <article>
+                    <i class="ph ph-ranking"></i>
+                    <span>规划输出</span>
+                    <strong>优先级</strong>
+                  </article>
+                </div>
+                <div class="idle-equation" aria-hidden="true">
+                  <span>R + A + H</span>
+                  <b>→</b>
+                  <span>D(t)</span>
+                  <b>→</b>
+                  <span>Gap</span>
+                  <b>→</b>
+                  <span>BCR</span>
+                </div>
+                <div class="idle-footer">
+                  <span><i class="ph ph-map-pin-area"></i><b data-idle-city>成都</b></span>
+                  <span><i class="ph ph-grid-four"></i><b data-idle-grid>169x239</b></span>
+                  <span><i class="ph ph-radar"></i><b data-idle-igp>本地5x5 / 外来3x3</b></span>
+                </div>
+              </div>
+              <img hidden data-sim-output alt="" />
             </figure>
           </div>
 
