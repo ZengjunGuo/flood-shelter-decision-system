@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>基于人群响应行为模拟的城市内涝应急避难场所供需匹配与优化决策支持模型</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://unpkg.com/@phosphor-icons/web" defer></script>
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="nav">
+      <a class="brand" href="#">
+        <span class="brand-icon"><i class="ph ph-cloud-rain"></i></span>
+        <span>避难供需优化模型</span>
+      </a>
+      <button class="menu-button" type="button" aria-label="打开导航" data-menu-toggle>
+        <i class="ph ph-list"></i>
+      </button>
+      <nav class="nav-links" data-nav aria-label="主导航">
+        <button class="nav-close" type="button" aria-label="关闭导航" data-menu-close>
+          <i class="ph ph-x"></i>
+        </button>
+        <a href="#model">模型</a>
+        <a href="#console">模拟</a>
+        <a href="#case">案例</a>
+        <a href="#decision">决策</a>
+      </nav>
+      <a class="github-pill" href="#console">
+        <i class="ph ph-compass"></i>
+        <span>规划应用</span>
+      </a>
+    </header>
+
+    <main>
+      <section class="hero" id="overview">
+        <div class="hero-copy">
+          <span class="release-pill"><i class="ph ph-lifebuoy"></i> 城市韧性决策支持</span>
+          <p class="model-kicker">基于人群响应行为模拟的</p>
+          <h1 class="model-title" aria-label="基于人群响应行为模拟的城市内涝应急避难场所供需匹配与优化决策支持模型">
+            <span>城市内涝应急避难场所</span>
+            <span>供需匹配与优化</span>
+            <span>决策支持模型</span>
+          </h1>
+          <p class="lede">
+            <span>评估内涝情景下的避难服务能力，判断需求与供给是否匹配。</span>
+            <span>形成短板诊断、设施优化和建设优先级建议。</span>
+          </p>
+          <p class="support">服务超大城市避难设施专项规划、平急两用公共设施布局和近期建设项目安排。</p>
+          <div class="terminal">
+            <code>$ shelter-priority --grid 1km</code>
+            <button type="button" data-copy>复制</button>
+          </div>
+          <div class="actions">
+            <a class="primary" href="#console">进入系统 <i class="ph ph-arrow-right"></i></a>
+            <a class="secondary" href="#model">方法框架 <i class="ph ph-arrow-right"></i></a>
+          </div>
+        </div>
+
+        <div class="hero-collage" aria-label="系统视觉拼贴">
+          <article class="code-card">
+            <code>
+              <span>risk layer: flood exposure</span>
+              <span>demand: resident + commuter response</span>
+              <span>supply: shelter + public facility</span>
+              <span>decision: add / retrofit / coordinate</span>
+            </code>
+          </article>
+
+          <article class="paper-card">
+            <div>
+              <span class="mini-brand"><i class="ph ph-circles-three-plus"></i> 灾时响应模拟</span>
+              <h2>动态避难需求</h2>
+              <p>根据人口流动方向、设施服务范围和可达性，识别灾时需求变化。</p>
+            </div>
+            <img src="./assets/project/planning-response-model.png" alt="城市内涝情景下人群流线与避难设施供需关系图" />
+          </article>
+
+          <article class="black-card">
+            <span>规划决策</span>
+            <h2>形成避难设施补短板的优先级排序，支撑专项规划、项目库和近期实施计划。</h2>
+            <div class="black-actions">
+              <a href="#decision">进入方案</a>
+              <a href="#case">案例图集</a>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="surface" id="model" aria-label="动态需求配置逻辑">
+        <div class="surface-bracket left" aria-hidden="true"></div>
+        <div class="surface-bracket right" aria-hidden="true"></div>
+        <div class="register one" aria-hidden="true"></div>
+        <div class="register two" aria-hidden="true"></div>
+
+        <div class="surface-row">
+          <figure class="thesis-visual">
+            <img src="./assets/project/dynamic-demand-logic.png" alt="静态人口配置与灾时动态避难需求差异图" />
+          </figure>
+          <article class="thesis-copy">
+            <span>配置前提</span>
+            <h2>静态人口不能代表灾时需求</h2>
+            <p>传统配置常把居住人口直接折算为避难需求，假定人和设施的关系不随灾情变化。内涝发生后，积水阻隔、道路绕行、设施可达性和从众行为会重塑人群流向，进而改变每个避难场所承受的真实压力。</p>
+            <p>系统把人群响应行为作为配置前提，先推演灾时动态需求，再进行供需匹配和补短板优先级排序。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="method">
+        <div>
+          <span class="section-label">METHOD</span>
+          <h2>动态需求先行的配置方法</h2>
+        </div>
+        <div class="method-copy">
+          <p>先推演灾时人群怎样移动，再判断避难设施哪里承压、哪里富余、哪里应优先补短板。</p>
+          <div class="method-grid">
+            <article>
+              <div class="method-card-head">
+                <i class="ph ph-arrows-out-cardinal"></i>
+                <span>行为模拟</span>
+              </div>
+              <code>F = R + A + H</code>
+              <p>把积水排斥、设施吸引和从众效应转成移动方向。</p>
+            </article>
+            <article>
+              <div class="method-card-head">
+                <i class="ph ph-squares-four"></i>
+                <span>供需诊断</span>
+              </div>
+              <code>Gap = D(t) - S</code>
+              <p>在 1km² 网格上比较动态需求与设施容量，区分承压、均衡和富余片区。</p>
+            </article>
+            <article>
+              <div class="method-card-head">
+                <i class="ph ph-chart-line-up"></i>
+                <span>优化配置</span>
+              </div>
+              <code>P = Gap x BCR</code>
+              <p>按缺口强度与投入收益排序，给出近期建设和存量改造的先后次序。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="console simulation" id="console">
+        <div class="console-copy">
+          <h2>人群移动模拟控制台</h2>
+          <p>选择城市、参数和结果视图，查看灾时人群轨迹、需求热力和综合匹配结果。</p>
+          <div class="console-metrics">
+            <article class="metric-primary">
+              <strong data-active-city>成都</strong>
+              <span>当前城市</span>
+            </article>
+            <article class="metric-primary">
+              <strong data-active-view>综合</strong>
+              <span>结果视图</span>
+            </article>
+            <article class="metric-compact">
+              <strong data-analysis-steps>0</strong>
+              <span>当前步数</span>
+              <small>点击运行后更新</small>
+            </article>
+            <article class="metric-compact">
+              <strong data-analysis-cells>40,391</strong>
+              <span>网格单元</span>
+              <small>规划网格总数</small>
+            </article>
+            <article class="metric-compact">
+              <strong data-analysis-ratio>5:2</strong>
+              <span>人口比例</span>
+              <small>本地:外来</small>
+            </article>
+            <article class="metric-compact">
+              <strong data-analysis-igp>5x5 / 3x3</strong>
+              <span>感知范围</span>
+              <small>本地/外来 IGP</small>
+            </article>
+          </div>
+        </div>
+
+        <div class="sim-workbench" aria-label="人群移动模拟控制台">
+          <form class="sim-controls" data-sim-form>
+            <div class="field city-field">
+              <label for="citySelect">城市</label>
+              <select id="citySelect" name="city" data-city-select></select>
+            </div>
+            <div class="field">
+              <label>人群结构</label>
+              <output data-ratio-display>5:2</output>
+            </div>
+            <div class="field">
+              <label>分析网格</label>
+              <output data-grid-display>169x239</output>
+            </div>
+            <div class="field">
+              <label>信息感知范围</label>
+              <output data-igp-display>本地5x5 / 外来3x3</output>
+            </div>
+            <div class="field">
+              <label>降雨情景</label>
+              <output>百年一遇</output>
+            </div>
+            <div class="sim-view-switch" role="group" aria-label="结果视图">
+              <button class="is-selected" type="button" data-sim-view="combined">综合</button>
+              <button type="button" data-sim-view="agent">人群轨迹</button>
+              <button type="button" data-sim-view="heatmap">需求热力</button>
+            </div>
+            <button class="run-button" type="submit">
+              <i class="ph ph-play"></i>
+              <span>运行推演</span>
+            </button>
+          </form>
+
+          <div class="sim-result">
+            <div class="result-toolbar">
+              <div>
+                <span data-result-title>成都</span>
+                <strong data-result-subtitle>综合视图</strong>
+              </div>
+              <div class="result-tags">
+                <span>百年一遇</span>
+                <span data-result-state>待运行</span>
+              </div>
+            </div>
+            <figure class="sim-media">
+              <img class="is-idle" data-sim-output src="./assets/project/simulation-idle.png" alt="成都市模型运行前的城市内涝避难需求静态底图" />
+            </figure>
+          </div>
+
+          <div class="sim-readout" aria-label="当前参数">
+            <article>
+              <span>Ratio</span>
+              <strong data-readout-ratio>5 : 2</strong>
+            </article>
+            <article>
+              <span>Grid</span>
+              <strong data-readout-grid>169 : 239</strong>
+            </article>
+            <article>
+              <span>状态</span>
+              <strong data-readout-status>待运行</strong>
+            </article>
+            <article>
+              <span>IGP</span>
+              <strong data-readout-igp>5x5 / 3x3</strong>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="case" id="case">
+        <div class="case-head">
+          <h2>超大城市供需错配识别</h2>
+          <p>案例库用于比较不同城市的避难资源供给、灾时动态需求和设施补短板强度。</p>
+        </div>
+        <div class="case-grid">
+          <article class="case-card atlas">
+            <img src="./assets/project/city-atlas.jpg" alt="超大城市应急避难场所供需匹配空间分布小图集" />
+          </article>
+          <article class="case-card finding">
+            <span>核心格局</span>
+            <h3>供需匹配呈现内缺外盈。</h3>
+            <p>核心区集中性匮乏，郊区分散性冗余，匮乏区的流入人口高于冗余区。</p>
+          </article>
+          <article class="case-card chart">
+            <img src="./assets/project/cost-benefit.jpg" alt="多城市成本与收益构成图" />
+          </article>
+          <article class="case-card metric">
+            <strong>1.67 亿人</strong>
+            <span>涉及供需错配区域的人口规模</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="decision" id="decision">
+        <div class="decision-head">
+          <div>
+            <span class="section-label">DECISION</span>
+            <h2>配置方案板</h2>
+          </div>
+        </div>
+
+        <div class="decision-layout">
+          <figure class="benefit-panel">
+            <img src="./assets/project/benefit-curve.jpg" alt="应急避难场所配置范围扩大时净收益和增长率变化曲线" />
+          </figure>
+
+          <div class="state-panel table-state" data-state="plan">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">输出</th>
+                  <th scope="col">依据</th>
+                  <th scope="col">策略</th>
+                  <th scope="col">结果</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>短板片区优先</strong><span>设施增补与改造范围</span></td>
+                  <td>Kneedle 最优点</td>
+                  <td><span class="status active">增设或改造</span></td>
+                  <td>收益增长率 4.83%</td>
+                </tr>
+                <tr>
+                  <td><strong>收益-成本比</strong><span>多城市均值</span></td>
+                  <td>成本效益测算</td>
+                  <td><span class="status pending">财政排序</span></td>
+                  <td>BCR 34.40</td>
+                </tr>
+                <tr>
+                  <td><strong>长期韧性评估</strong><span>2050 情景</span></td>
+                  <td>SSP5-8.5 气候情景</td>
+                  <td><span class="status blocked">提前识别</span></td>
+                  <td>定位未来资源缺口</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
