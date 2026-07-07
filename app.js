@@ -422,6 +422,10 @@ function fallbackAnswer(context, question) {
   if (!normalized) {
     return "请输入需要判断的规划问题。";
   }
+  const casual = casualAnswer(normalized);
+  if (casual) {
+    return casual;
+  }
   if (normalized.includes("优先") || normalized.includes("近期") || normalized.includes("顺序")) {
     return `${context.city.name}当前${context.view.label}结果下，优先事项应从连续短板片区开始：先校核高需求网格周边的可达设施，再筛选能快速转换的公共建筑，最后按投资强度和服务补足效果排出近期项目。`;
   }
@@ -437,21 +441,48 @@ function fallbackAnswer(context, question) {
   return `${context.city.name}的判断可以按三步展开：识别连续短板片区，筛选可转换设施，按服务补足效果和实施难度确定优先事项。`;
 }
 
+function compactQuestion(text) {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[，。！？!?,.、\s]/g, "");
+}
+
+function casualAnswer(question) {
+  const compact = compactQuestion(question);
+  if (/^(你好|您好|hi|hello|哈喽|嗨|在吗|你在吗|早上好|下午好|晚上好)+$/.test(compact)) {
+    return "你好，我在。";
+  }
+  if (/^(谢谢|感谢|多谢|辛苦了|谢谢你)+$/.test(compact)) {
+    return "不客气。";
+  }
+  if (/^(你是谁|你是干嘛的|你能做什么|你会什么|怎么用)$/.test(compact)) {
+    return "我负责读取当前推演结果，把供需错配、短板片区和配置优先事项转成规划判断。";
+  }
+  return "";
+}
+
 function modelSystemPrompt(mode) {
   const outputShape =
     mode === "question"
       ? '{"answer":"一段中文回答，120到220字"}'
       : '{"sections":[{"title":"本次读数","body":"一句到两句中文"},{"title":"错配判断","body":"一句到两句中文"},{"title":"优先事项","body":"一句到两句中文"},{"title":"规划校核","body":"一句到两句中文"}]}';
 
-  return [
+  const commonRules = [
     "你是城市内涝应急避难设施供需匹配模型的规划分析助手。",
     "你的回答必须严格基于用户提供的当前城市、结果视图、网格、人口比例、IGP、步数和结果摘要。",
     "表达要像国土空间规划和应急避难设施配置评估，不要写成产品介绍，不要自称模型，不要说明用途限制。",
     "核心卖点是先模拟灾时人群移动和动态避难需求，再判断设施短板和配置优先事项。",
     "建议必须围绕避难设施容量、短板片区、公共建筑转换、平急两用和实施优先级，不要写公共交通、医疗、商业建设等无关方向。",
     "不要使用 Markdown，不要列泛泛条目，不要输出解释过程。",
-    `只返回 JSON，格式为 ${outputShape}`,
-  ].join("\n");
+  ];
+
+  if (mode === "question") {
+    commonRules.push("如果用户只是寒暄、致谢或询问身份，直接自然回答，不要强行输出规划建议。");
+  }
+
+  commonRules.push(`只返回 JSON，格式为 ${outputShape}`);
+  return commonRules.join("\n");
 }
 
 function extractModelJson(text) {
@@ -572,6 +603,9 @@ function normalizeSections(data, context) {
 
 function normalizeAnswer(data, context, question) {
   const answer = data?.answer ?? data?.text ?? data?.message;
+  if (casualAnswer(question)) {
+    return casualAnswer(question);
+  }
   if (typeof answer === "string" && answer.trim() && isPlanningRelevant(answer)) {
     return answer.trim();
   }
@@ -710,6 +744,28 @@ async function askPlanningQuestion() {
     adviceAnswer.classList.remove("is-thinking");
     adviceAnswer.innerHTML = "<p>请输入需要判断的规划问题。</p>";
     setAdviceAnswerState("等待问题");
+    return;
+  }
+
+  const directAnswer = casualAnswer(question);
+  if (directAnswer) {
+    answerBusy = true;
+    setAdviceAnswerState("直接回复");
+    setThinkingState(adviceAnswer, "small");
+    await wait(520);
+    if (!requestStillCurrent("answer", requestId)) {
+      return;
+    }
+    adviceAnswer.classList.remove("is-thinking");
+    adviceAnswer.innerHTML = "";
+    const paragraph = document.createElement("p");
+    adviceAnswer.appendChild(paragraph);
+    await typeText(paragraph, directAnswer, "answer", requestId);
+    if (!requestStillCurrent("answer", requestId)) {
+      return;
+    }
+    answerBusy = false;
+    setAdviceAnswerState(adviceGenerated ? "可继续追问" : "等待问题");
     return;
   }
 
