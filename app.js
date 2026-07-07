@@ -23,8 +23,8 @@ const readoutGrid = document.querySelector("[data-readout-grid]");
 const readoutStatus = document.querySelector("[data-readout-status]");
 const readoutIgp = document.querySelector("[data-readout-igp]");
 const analysisSteps = document.querySelector("[data-analysis-steps]");
-const analysisCells = document.querySelector("[data-analysis-cells]");
-const analysisRatio = document.querySelector("[data-analysis-ratio]");
+const analysisPopulation = document.querySelector("[data-analysis-population]");
+const analysisFloodArea = document.querySelector("[data-analysis-flood-area]");
 const analysisIgp = document.querySelector("[data-analysis-igp]");
 const idleCity = document.querySelector("[data-idle-city]");
 const idleGrid = document.querySelector("[data-idle-grid]");
@@ -44,7 +44,6 @@ const adviceAnswerState = document.querySelector("[data-advice-answer-state]");
 
 const IGP_LABEL = "本地5x5 / 外来3x3";
 const IGP_COMPACT = "5x5/3x3";
-const MAX_STEP = 49;
 const STEP_INTERVAL_MS = 185;
 const API_OVERRIDE = window.PLANNING_ADVICE_API ?? "";
 const CAN_PROBE_LOCAL_API =
@@ -57,27 +56,27 @@ const REPORT_MIN_DELAY_MS = 1900;
 const ANSWER_MIN_DELAY_MS = 1600;
 
 const cities = [
-  { slug: "Beijing", name: "北京", ratio: "5 : 6", grid: "202 : 262" },
-  { slug: "Chengdu", name: "成都", ratio: "5 : 2", grid: "169 : 239" },
-  { slug: "Chongqing", name: "重庆", ratio: "9 : 5", grid: "506 : 613" },
-  { slug: "Dalian", name: "大连", ratio: "9 : 4", grid: "185 : 304" },
-  { slug: "Dongguan", name: "东莞", ratio: "3 : 2", grid: "61 : 93" },
-  { slug: "Shanghai", name: "上海", ratio: "3 : 4", grid: "147 : 157" },
-  { slug: "Qingdao", name: "青岛", ratio: "3 : 1", grid: "196 : 184" },
-  { slug: "Hangzhou", name: "杭州", ratio: "7 : 5", grid: "173 : 299" },
-  { slug: "Harbin", name: "哈尔滨", ratio: "4 : 1", grid: "327 : 570" },
-  { slug: "Zhengzhou", name: "郑州", ratio: "5 : 1", grid: "91 : 187" },
-  { slug: "Shenzhen", name: "深圳", ratio: "3 : 2", grid: "58 : 109" },
-  { slug: "Xi'an", name: "西安", ratio: "3 : 1", grid: "131 : 271" },
-  { slug: "Changsha", name: "长沙", ratio: "4 : 1", grid: "102 : 296" },
-  { slug: "Wuhan", name: "武汉", ratio: "5 : 2", grid: "174 : 173" },
-  { slug: "Foshan", name: "佛山", ratio: "3 : 2", grid: "117 : 125" },
-  { slug: "Jinan", name: "济南", ratio: "3 : 1", grid: "194 : 220" },
-  { slug: "Shenyang", name: "沈阳", ratio: "9 : 4", grid: "231 : 174" },
-  { slug: "Guangzhou", name: "广州", ratio: "3 : 2", grid: "172 : 138" },
-  { slug: "Tianjin", name: "天津", ratio: "9 : 5", grid: "212 : 170" },
-  { slug: "Kunming", name: "昆明", ratio: "7 : 2", grid: "270 : 188" },
-  { slug: "Nanjing", name: "南京", ratio: "5 : 2", grid: "173 : 110" },
+  { slug: "Beijing", name: "北京", ratio: "5 : 6", grid: "202 : 262", iterations: 200, populationWan: 2991.85, floodAreaKm2: 2442 },
+  { slug: "Chengdu", name: "成都", ratio: "5 : 2", grid: "169 : 239", iterations: 200, populationWan: 2373.49, floodAreaKm2: 921 },
+  { slug: "Chongqing", name: "重庆", ratio: "9 : 5", grid: "506 : 613", iterations: 182, populationWan: 5892.48, floodAreaKm2: 1 },
+  { slug: "Dalian", name: "大连", ratio: "9 : 4", grid: "185 : 304", iterations: 116, populationWan: 801.74, floodAreaKm2: 24 },
+  { slug: "Dongguan", name: "东莞", ratio: "3 : 2", grid: "61 : 93", iterations: 130, populationWan: 1660.93, floodAreaKm2: 393 },
+  { slug: "Shanghai", name: "上海", ratio: "3 : 4", grid: "147 : 157", iterations: 200, populationWan: 3737.89, floodAreaKm2: 3288 },
+  { slug: "Qingdao", name: "青岛", ratio: "3 : 1", grid: "196 : 184", iterations: 122, populationWan: 1285.28, floodAreaKm2: 2223 },
+  { slug: "Hangzhou", name: "杭州", ratio: "7 : 5", grid: "173 : 299", iterations: 150, populationWan: 2003.15, floodAreaKm2: 844 },
+  { slug: "Harbin", name: "哈尔滨", ratio: "4 : 1", grid: "327 : 570", iterations: 183, populationWan: 1944.45, floodAreaKm2: 1498 },
+  { slug: "Zhengzhou", name: "郑州", ratio: "5 : 1", grid: "91 : 187", iterations: 146, populationWan: 1358.51, floodAreaKm2: 1332 },
+  { slug: "Shenzhen", name: "深圳", ratio: "3 : 2", grid: "58 : 109", iterations: 113, populationWan: 1770.1, floodAreaKm2: 19 },
+  { slug: "Xi'an", name: "西安", ratio: "3 : 1", grid: "131 : 271", iterations: 200, populationWan: 1638.24, floodAreaKm2: 532 },
+  { slug: "Changsha", name: "长沙", ratio: "4 : 1", grid: "102 : 296", iterations: 128, populationWan: 1265.68, floodAreaKm2: 53 },
+  { slug: "Wuhan", name: "武汉", ratio: "5 : 2", grid: "174 : 173", iterations: 161, populationWan: 1840.78, floodAreaKm2: 1386 },
+  { slug: "Foshan", name: "佛山", ratio: "3 : 2", grid: "117 : 125", iterations: 122, populationWan: 2314, floodAreaKm2: 302 },
+  { slug: "Jinan", name: "济南", ratio: "3 : 1", grid: "194 : 220", iterations: 167, populationWan: 1992.81, floodAreaKm2: 2224 },
+  { slug: "Shenyang", name: "沈阳", ratio: "9 : 4", grid: "231 : 174", iterations: 192, populationWan: 1308.54, floodAreaKm2: 3397 },
+  { slug: "Guangzhou", name: "广州", ratio: "3 : 2", grid: "172 : 138", iterations: 131, populationWan: 4362.33, floodAreaKm2: 100 },
+  { slug: "Tianjin", name: "天津", ratio: "9 : 5", grid: "212 : 170", iterations: 159, populationWan: 2262.39, floodAreaKm2: 7578 },
+  { slug: "Kunming", name: "昆明", ratio: "7 : 2", grid: "270 : 188", iterations: 130, populationWan: 996.6, floodAreaKm2: 28 },
+  { slug: "Nanjing", name: "南京", ratio: "5 : 2", grid: "173 : 110", iterations: 180, populationWan: 1442.45, floodAreaKm2: 43 },
 ];
 
 let selectedSimView = "combined";
@@ -144,6 +143,13 @@ function formatNumber(value) {
   return new Intl.NumberFormat("zh-CN").format(value);
 }
 
+function formatDecimal(value, digits = 2) {
+  return new Intl.NumberFormat("zh-CN", {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: 0,
+  }).format(value);
+}
+
 function gridCellCount(city = currentCity()) {
   const [rows, columns] = pairValues(gridValue(city)).map(Number);
   if (!Number.isFinite(rows) || !Number.isFinite(columns)) {
@@ -178,6 +184,24 @@ function populationMix(city = currentCity()) {
   return "本地与外来人群接近均衡";
 }
 
+function cityMaxStep(city = currentCity()) {
+  return city.iterations ?? 49;
+}
+
+function exposureLevel(city = currentCity()) {
+  const area = city.floodAreaKm2 ?? 0;
+  if (area >= 3000) {
+    return "极高暴露";
+  }
+  if (area >= 1000) {
+    return "高暴露";
+  }
+  if (area >= 100) {
+    return "中等暴露";
+  }
+  return "局部暴露";
+}
+
 function viewFocus() {
   if (selectedSimView === "agent") {
     return "人群轨迹";
@@ -191,7 +215,7 @@ function viewFocus() {
 function setStep(value) {
   currentStep = value;
   if (analysisSteps) {
-    analysisSteps.textContent = String(value);
+    analysisSteps.textContent = `${value}/${cityMaxStep()}`;
   }
 }
 
@@ -206,7 +230,8 @@ function startStepTicker() {
   stopStepTicker();
   setStep(1);
   stepTimer = window.setInterval(() => {
-    setStep(currentStep >= MAX_STEP ? 1 : currentStep + 1);
+    const maxStep = cityMaxStep();
+    setStep(currentStep >= maxStep ? 1 : currentStep + 1);
   }, STEP_INTERVAL_MS);
 }
 
@@ -236,7 +261,6 @@ function simMediaPath(city, view) {
 
 function syncReadout(city) {
   const viewLabel = currentViewLabel();
-  const cells = gridCellCount(city);
   const statusLabel = hasRun ? "运行中" : "待运行";
 
   if (activeCity) activeCity.textContent = city.name;
@@ -252,8 +276,8 @@ function syncReadout(city) {
   if (readoutStatus) readoutStatus.textContent = statusLabel;
   if (readoutIgp) readoutIgp.textContent = IGP_COMPACT;
   if (!hasRun) setStep(0);
-  if (analysisCells) analysisCells.textContent = cells ? formatNumber(cells) : "未定";
-  if (analysisRatio) analysisRatio.textContent = compactPair(ratioValue(city));
+  if (analysisPopulation) analysisPopulation.textContent = formatDecimal(city.populationWan ?? 0);
+  if (analysisFloodArea) analysisFloodArea.textContent = formatDecimal(city.floodAreaKm2 ?? 0);
   if (analysisIgp) analysisIgp.textContent = IGP_COMPACT;
   if (idleCity) idleCity.textContent = city.name;
   if (idleGrid) idleGrid.textContent = gridDisplayValue(city);
@@ -295,8 +319,8 @@ function syncAdviceShell(city = currentCity()) {
   if (adviceStatus) adviceStatus.textContent = hasRun ? "已运行" : "待运行";
   if (adviceContext) {
     adviceContext.textContent = hasRun
-      ? `${city.name}已完成${viewFocus()}推演，结果可用于短板识别和规划优先事项判断。`
-      : `当前选择${city.name}，${viewFocus()}视图。运行推演后生成本次规划建议。`;
+      ? `${city.name}已完成${viewFocus()}推演，迭代 ${cityMaxStep(city)} 次，潜在淹没区 ${formatDecimal(city.floodAreaKm2 ?? 0)} km²。`
+      : `当前选择${city.name}，${viewFocus()}视图。人口规模 ${formatDecimal(city.populationWan ?? 0)} 万，运行推演后生成规划建议。`;
   }
   if (!adviceBusy) {
     setAdviceModelState(hasRun ? (adviceGenerated ? `${PUBLIC_MODEL_LABEL} 已生成` : `${PUBLIC_MODEL_LABEL} 等待读取`) : "等待推演结果");
@@ -349,8 +373,9 @@ function deriveResultSummary(city = currentCity()) {
   const totalRatio = local + nonlocal;
   const nonlocalShare = totalRatio > 0 ? nonlocal / totalRatio : 0.35;
   const compactness = rows && columns ? Math.min(rows, columns) / Math.max(rows, columns) : 0.6;
+  const areaPressure = Math.min(18, Math.log10((city.floodAreaKm2 ?? 0) + 10) * 5);
   const pressureScore = Math.round(
-    Math.min(92, Math.max(38, 42 + nonlocalShare * 24 + (1 - compactness) * 18 + Math.log10(cells || 10) * 4)),
+    Math.min(96, Math.max(38, 38 + nonlocalShare * 22 + (1 - compactness) * 14 + Math.log10(cells || 10) * 4 + areaPressure)),
   );
   const pressureLevel = pressureScore >= 74 ? "高" : pressureScore >= 58 ? "中高" : "中等";
   const shortageShare = pressureLevel === "高" ? "连续成片" : pressureLevel === "中高" ? "局部连片" : "点状集聚";
@@ -361,6 +386,7 @@ function deriveResultSummary(city = currentCity()) {
     pressureLevel,
     shortageShare,
     corridor,
+    exposure: exposureLevel(city),
     planningRisk:
       nonlocalShare >= 0.34
         ? "外来通勤与流动人群会放大灾时需求偏移，需要把移动后的需求纳入配置判断。"
@@ -388,7 +414,9 @@ function planningContext(question = "") {
       igp: IGP_LABEL,
       rainfall: "百年一遇",
       step: currentStep,
-      maxStep: MAX_STEP,
+      maxStep: cityMaxStep(city),
+      populationWan: city.populationWan,
+      floodAreaKm2: city.floodAreaKm2,
     },
     result: deriveResultSummary(city),
     question,
@@ -396,15 +424,16 @@ function planningContext(question = "") {
 }
 
 function fallbackReport(context = planningContext()) {
-  const cells = context.parameters.gridCells ? formatNumber(context.parameters.gridCells) : "未定";
+  const population = formatDecimal(context.parameters.populationWan ?? 0);
+  const floodArea = formatDecimal(context.parameters.floodAreaKm2 ?? 0);
   return [
     {
       title: "本次读数",
-      body: `${context.city.name}当前视图为${context.view.label}，分析网格 ${cells} 个。${context.result.pattern}`,
+      body: `${context.city.name}当前视图为${context.view.label}，迭代 ${context.parameters.maxStep} 次，人口规模 ${population} 万，潜在淹没区 ${floodArea} km²。${context.result.pattern}`,
     },
     {
       title: "错配判断",
-      body: `${context.result.shortageShare}的高需求片区应作为首要校核对象，重点看设施容量、可达路径和洪涝暴露是否同时承压。`,
+      body: `${context.result.exposure}下，${context.result.shortageShare}的高需求片区应作为首要校核对象，重点看设施容量、可达路径和洪涝暴露是否同时承压。`,
     },
     {
       title: "优先事项",
@@ -412,7 +441,7 @@ function fallbackReport(context = planningContext()) {
     },
     {
       title: "规划校核",
-      body: `${context.result.planningRisk}后续需要接入积水深度、道路阻断、设施开放容量和时段人口，形成可复算的项目清单。`,
+      body: `${context.result.planningRisk}后续需要把人口规模、潜在淹没区、道路阻断和设施开放容量一起校核，形成可复算的项目清单。`,
     },
   ];
 }
@@ -427,7 +456,7 @@ function fallbackAnswer(context, question) {
     return casual;
   }
   if (normalized.includes("优先") || normalized.includes("近期") || normalized.includes("顺序")) {
-    return `${context.city.name}当前${context.view.label}结果下，优先事项应从连续短板片区开始：先校核高需求网格周边的可达设施，再筛选能快速转换的公共建筑，最后按投资强度和服务补足效果排出近期项目。`;
+    return `${context.city.name}当前${context.view.label}结果下，优先事项应结合 ${formatDecimal(context.parameters.populationWan ?? 0)} 万人口规模和 ${formatDecimal(context.parameters.floodAreaKm2 ?? 0)} km² 潜在淹没区判断，从连续短板片区开始：先校核高需求网格周边的可达设施，再筛选能快速转换的公共建筑，最后按投资强度和服务补足效果排出近期项目。`;
   }
   if (normalized.includes("设施") || normalized.includes("改造") || normalized.includes("增设")) {
     return `设施策略建议分两类处理。可达性好但容量不足的存量设施先做改造和开放条件校核；服务空白且需求持续集聚的片区，再考虑新增小型避难节点或嵌入式公共空间。`;
@@ -470,7 +499,7 @@ function modelSystemPrompt(mode) {
 
   const commonRules = [
     "你是城市内涝应急避难设施供需匹配模型的规划分析助手。",
-    "你的回答必须严格基于用户提供的当前城市、结果视图、网格、人口比例、IGP、步数和结果摘要。",
+    "你的回答必须严格基于用户提供的当前城市、结果视图、网格、人口比例、IGP、迭代次数、人口规模、潜在淹没区和结果摘要。",
     "表达要像国土空间规划和应急避难设施配置评估，不要写成产品介绍，不要自称模型，不要说明用途限制。",
     "核心卖点是先模拟灾时人群移动和动态避难需求，再判断设施短板和配置优先事项。",
     "建议必须围绕避难设施容量、短板片区、公共建筑转换、平急两用和实施优先级，不要写公共交通、医疗、商业建设等无关方向。",
