@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/advice.js": {
+      "maxDuration": 30
+    }
+  }
+}

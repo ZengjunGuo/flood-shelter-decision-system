@@ -308,7 +308,10 @@
 
           <article class="advice-report">
             <div class="advice-head">
-              <span>结构化建议</span>
+              <div>
+                <span>结构化建议</span>
+                <small data-advice-model-state>等待推演结果</small>
+              </div>
               <button type="button" data-generate-advice>读取当前结果</button>
             </div>
             <div class="advice-output is-pending" data-advice-output>
@@ -319,6 +322,7 @@
           <article class="advice-query">
             <div>
               <span>追问</span>
+              <small data-advice-answer-state>等待问题</small>
               <h3>把结果转成规划语言</h3>
             </div>
             <form data-advice-form>

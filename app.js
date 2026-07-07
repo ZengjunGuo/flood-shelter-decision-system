@@ -36,14 +36,22 @@ const adviceGrid = document.querySelector("[data-advice-grid]");
 const adviceStatus = document.querySelector("[data-advice-status]");
 const adviceOutput = document.querySelector("[data-advice-output]");
 const adviceButton = document.querySelector("[data-generate-advice]");
+const adviceModelState = document.querySelector("[data-advice-model-state]");
 const adviceForm = document.querySelector("[data-advice-form]");
 const adviceInput = document.querySelector("[data-advice-input]");
 const adviceAnswer = document.querySelector("[data-advice-answer]");
+const adviceAnswerState = document.querySelector("[data-advice-answer-state]");
 
 const IGP_LABEL = "本地5x5 / 外来3x3";
 const IGP_COMPACT = "5x5/3x3";
 const MAX_STEP = 49;
 const STEP_INTERVAL_MS = 185;
+const API_OVERRIDE = window.PLANNING_ADVICE_API ?? "";
+const CAN_PROBE_LOCAL_API =
+  location.protocol.startsWith("http") && !location.hostname.endsWith("github.io");
+const ADVICE_API_URL = API_OVERRIDE || (CAN_PROBE_LOCAL_API ? "/api/advice" : "");
+const REPORT_MIN_DELAY_MS = 1900;
+const ANSWER_MIN_DELAY_MS = 1600;
 
 const cities = [
   { slug: "Beijing", name: "北京", ratio: "5 : 6", grid: "202 : 262" },
@@ -74,6 +82,10 @@ let hasRun = false;
 let currentStep = 0;
 let stepTimer = null;
 let adviceGenerated = false;
+let adviceRequestId = 0;
+let answerRequestId = 0;
+let adviceBusy = false;
+let answerBusy = false;
 
 function setVisibleState(nextState) {
   statePanels.forEach((panel) => {
@@ -246,6 +258,33 @@ function syncReadout(city) {
   syncAdviceShell(city);
 }
 
+function setAdviceModelState(text) {
+  if (adviceModelState) {
+    adviceModelState.textContent = text;
+  }
+}
+
+function setAdviceAnswerState(text) {
+  if (adviceAnswerState) {
+    adviceAnswerState.textContent = text;
+  }
+}
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function holdMinimum(startTime, minimumMs) {
+  const elapsed = performance.now() - startTime;
+  if (elapsed < minimumMs) {
+    await wait(minimumMs - elapsed);
+  }
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 function syncAdviceShell(city = currentCity()) {
   if (adviceCity) adviceCity.textContent = city.name;
   if (adviceView) adviceView.textContent = viewFocus();
@@ -253,54 +292,258 @@ function syncAdviceShell(city = currentCity()) {
   if (adviceStatus) adviceStatus.textContent = hasRun ? "已运行" : "待运行";
   if (adviceContext) {
     adviceContext.textContent = hasRun
-      ? `${city.name}已完成${viewFocus()}推演，可读取错配诊断并形成规划建议。`
+      ? `${city.name}已完成${viewFocus()}推演，结果可用于短板识别和规划优先事项判断。`
       : `当前选择${city.name}，${viewFocus()}视图。运行推演后生成本次规划建议。`;
   }
+  if (!adviceBusy) {
+    setAdviceModelState(hasRun ? (adviceGenerated ? "建议已生成" : "等待读取结果") : "等待推演结果");
+  }
+  if (!answerBusy) {
+    setAdviceAnswerState(adviceGenerated ? "可继续追问" : "等待问题");
+  }
   if (adviceButton) {
-    adviceButton.disabled = !hasRun;
-    adviceButton.textContent = hasRun ? "读取当前结果" : "等待推演";
+    adviceButton.disabled = !hasRun || adviceBusy;
+    adviceButton.textContent = !hasRun ? "等待推演" : adviceGenerated ? "重新读取" : "读取当前结果";
   }
 }
 
-function clearAdvice() {
-  adviceGenerated = false;
-  syncAdviceShell(currentCity());
+function resetAdviceOutput() {
   if (adviceOutput) {
+    adviceOutput.classList.remove("is-thinking");
     adviceOutput.classList.add("is-pending");
     adviceOutput.innerHTML = "<p>先在上方选择城市和结果视图，点击运行推演后生成本次规划建议。</p>";
   }
   if (adviceAnswer) {
+    adviceAnswer.classList.remove("is-thinking");
     adviceAnswer.innerHTML = "<p>运行推演后，可围绕优先级、设施类型、平急两用和实施时序继续询问。</p>";
   }
 }
 
-function adviceItems(city = currentCity()) {
-  const scale = cityScale(city);
-  const mix = populationMix(city);
-  const focus = viewFocus();
-  const cells = formatNumber(gridCellCount(city) ?? 0);
+function clearAdvice() {
+  adviceRequestId += 1;
+  answerRequestId += 1;
+  adviceBusy = false;
+  answerBusy = false;
+  adviceGenerated = false;
+  syncAdviceShell(currentCity());
+  resetAdviceOutput();
+}
 
+function resultPattern() {
+  if (selectedSimView === "agent") {
+    return "轨迹结果显示，灾时人群并不按最近距离均匀分散，而是在道路可达、设施吸引和群体跟随作用下形成若干集中流向。";
+  }
+  if (selectedSimView === "heatmap") {
+    return "热力结果显示，动态需求在部分网格持续抬升，单纯按静态人口配置会低估灾时承压片区。";
+  }
+  return "综合结果显示，人口流向、避难设施供给和洪涝暴露在若干片区叠加，形成可识别的供需错配。";
+}
+
+function deriveResultSummary(city = currentCity()) {
+  const cells = gridCellCount(city) ?? 0;
+  const [rows, columns] = pairValues(gridValue(city)).map(Number);
+  const [local, nonlocal] = pairValues(ratioValue(city)).map(Number);
+  const totalRatio = local + nonlocal;
+  const nonlocalShare = totalRatio > 0 ? nonlocal / totalRatio : 0.35;
+  const compactness = rows && columns ? Math.min(rows, columns) / Math.max(rows, columns) : 0.6;
+  const pressureScore = Math.round(
+    Math.min(92, Math.max(38, 42 + nonlocalShare * 24 + (1 - compactness) * 18 + Math.log10(cells || 10) * 4)),
+  );
+  const pressureLevel = pressureScore >= 74 ? "高" : pressureScore >= 58 ? "中高" : "中等";
+  const shortageShare = pressureLevel === "高" ? "连续成片" : pressureLevel === "中高" ? "局部连片" : "点状集聚";
+  const corridor = rows > columns ? "南北向联系通道" : "东西向联系通道";
+
+  return {
+    pattern: resultPattern(),
+    pressureLevel,
+    shortageShare,
+    corridor,
+    planningRisk:
+      nonlocalShare >= 0.34
+        ? "外来通勤与流动人群会放大灾时需求偏移，需要把移动后的需求纳入配置判断。"
+        : "本地居民占比较高，仍需校核夜间人口和社区设施容量，避免只看常住人口总量。",
+  };
+}
+
+function planningContext(question = "") {
+  const city = currentCity();
+  return {
+    city: {
+      name: city.name,
+      slug: city.slug,
+      scale: cityScale(city),
+      populationMix: populationMix(city),
+    },
+    view: {
+      key: selectedSimView,
+      label: viewFocus(),
+    },
+    parameters: {
+      ratio: ratioValue(city),
+      grid: gridDisplayValue(city),
+      gridCells: gridCellCount(city),
+      igp: IGP_LABEL,
+      rainfall: "百年一遇",
+      step: currentStep,
+      maxStep: MAX_STEP,
+    },
+    result: deriveResultSummary(city),
+    question,
+  };
+}
+
+function fallbackReport(context = planningContext()) {
+  const cells = context.parameters.gridCells ? formatNumber(context.parameters.gridCells) : "未定";
   return [
     {
+      title: "本次读数",
+      body: `${context.city.name}当前视图为${context.view.label}，分析网格 ${cells} 个。${context.result.pattern}`,
+    },
+    {
       title: "错配判断",
-      body: `${city.name}为${scale}，分析网格 ${cells} 个。${focus}结果应优先识别连续高需求网格，以及服务容量不足的避难设施片区。`,
+      body: `${context.result.shortageShare}的高需求片区应作为首要校核对象，重点看设施容量、可达路径和洪涝暴露是否同时承压。`,
     },
     {
-      title: "配置重点",
-      body: `${mix}，建议把学校、体育馆、社区中心等可快速转换设施纳入校核范围，先补强高需求片区的步行可达服务。`,
+      title: "优先事项",
+      body: `近期排序不宜只按设施距离展开，应先处理${context.result.corridor}附近的连续短板，再评估周边公共设施的转换能力。`,
     },
     {
-      title: "实施时序",
-      body: "近期先处理高风险高缺口片区，中期推进存量设施改造，远期通过片区协同提高冗余设施调剂能力。",
-    },
-    {
-      title: "复核数据",
-      body: "建议继续核对积水深度、道路阻断、设施开放容量、夜间人口和通勤人口，避免用常住人口直接替代灾时需求。",
+      title: "规划校核",
+      body: `${context.result.planningRisk}后续需要接入积水深度、道路阻断、设施开放容量和时段人口，形成可复算的项目清单。`,
     },
   ];
 }
 
-function renderAdvice() {
+function fallbackAnswer(context, question) {
+  const normalized = question.trim();
+  if (!normalized) {
+    return "请输入需要判断的规划问题。";
+  }
+  if (normalized.includes("优先") || normalized.includes("近期") || normalized.includes("顺序")) {
+    return `${context.city.name}当前${context.view.label}结果下，优先事项应从连续短板片区开始：先校核高需求网格周边的可达设施，再筛选能快速转换的公共建筑，最后按投资强度和服务补足效果排出近期项目。`;
+  }
+  if (normalized.includes("设施") || normalized.includes("改造") || normalized.includes("增设")) {
+    return `设施策略建议分两类处理。可达性好但容量不足的存量设施先做改造和开放条件校核；服务空白且需求持续集聚的片区，再考虑新增小型避难节点或嵌入式公共空间。`;
+  }
+  if (normalized.includes("平急") || normalized.includes("公共设施")) {
+    return `平急两用不应平均铺开，应优先落在动态需求稳定抬升、现有避难容量不足、道路仍具备到达条件的片区，并同步明确开放时段、容量转换和管理责任。`;
+  }
+  if (normalized.includes("人口") || normalized.includes("流动") || normalized.includes("需求")) {
+    return `${context.result.planningRisk}这个模型的价值在于先模拟灾时移动，再做设施配置判断，避免用静态人口替代动态规划过程。`;
+  }
+  return `${context.city.name}的判断可以按三步展开：识别连续短板片区，筛选可转换设施，按服务补足效果和实施难度确定优先事项。`;
+}
+
+async function requestPlanningModel(payload) {
+  if (!ADVICE_API_URL) {
+    throw new Error("NO_MODEL_ENDPOINT");
+  }
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 26000);
+  try {
+    const response = await fetch(ADVICE_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`MODEL_ENDPOINT_${response.status}`);
+    }
+    return await response.json();
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function normalizeSections(data, context) {
+  const candidate = Array.isArray(data?.sections) ? data.sections : data?.report?.sections;
+  if (!Array.isArray(candidate) || candidate.length === 0) {
+    return fallbackReport(context);
+  }
+
+  return candidate
+    .slice(0, 4)
+    .map((item) => ({
+      title: String(item.title ?? "规划判断").trim().slice(0, 12),
+      body: String(item.body ?? item.content ?? "").trim(),
+    }))
+    .filter((item) => item.body);
+}
+
+function normalizeAnswer(data, context, question) {
+  const answer = data?.answer ?? data?.text ?? data?.message;
+  if (typeof answer === "string" && answer.trim()) {
+    return answer.trim();
+  }
+  return fallbackAnswer(context, question);
+}
+
+function setThinkingState(container, size = "large") {
+  if (!container) {
+    return;
+  }
+  const lineCount = size === "large" ? 5 : 3;
+  container.classList.remove("is-pending");
+  container.classList.add("is-thinking");
+  container.innerHTML = `<div class="thinking-lines">${Array.from({ length: lineCount })
+    .map((_, index) => `<span style="--line:${index}"></span>`)
+    .join("")}</div>`;
+}
+
+function requestStillCurrent(type, requestId) {
+  return type === "report" ? requestId === adviceRequestId : requestId === answerRequestId;
+}
+
+async function typeText(element, text, type, requestId) {
+  if (!requestStillCurrent(type, requestId)) {
+    return false;
+  }
+
+  if (prefersReducedMotion()) {
+    element.textContent = text;
+    return true;
+  }
+
+  element.textContent = "";
+  const chunkSize = text.length > 90 ? 18 : 12;
+  for (let index = 0; index < text.length; index += chunkSize) {
+    if (!requestStillCurrent(type, requestId)) {
+      return false;
+    }
+    element.textContent += text.slice(index, index + chunkSize);
+    await wait(28);
+  }
+  return true;
+}
+
+async function renderReportSections(sections, requestId) {
+  if (!adviceOutput || !requestStillCurrent("report", requestId)) {
+    return;
+  }
+
+  adviceOutput.classList.remove("is-pending", "is-thinking");
+  adviceOutput.innerHTML = "";
+  for (const item of sections) {
+    if (!requestStillCurrent("report", requestId)) {
+      return;
+    }
+    const block = document.createElement("section");
+    const title = document.createElement("h3");
+    const body = document.createElement("p");
+    title.textContent = item.title;
+    block.append(title, body);
+    adviceOutput.appendChild(block);
+    const completed = await typeText(body, item.body, "report", requestId);
+    if (!completed) {
+      return;
+    }
+    await wait(90);
+  }
+}
+
+async function renderAdvice() {
   syncAdviceShell(currentCity());
   if (!adviceOutput) {
     return;
@@ -311,43 +554,102 @@ function renderAdvice() {
     return;
   }
 
+  const requestId = adviceRequestId + 1;
+  adviceRequestId = requestId;
+  adviceBusy = true;
+  adviceGenerated = false;
+  if (adviceButton) {
+    adviceButton.disabled = true;
+    adviceButton.textContent = "读取中";
+  }
+  setAdviceModelState("读取当前结果");
+  setAdviceAnswerState("等待建议生成");
+  setThinkingState(adviceOutput);
+
+  const context = planningContext();
+  const startTime = performance.now();
+  let sections = fallbackReport(context);
+  try {
+    setAdviceModelState("形成规划判断");
+    const data = await requestPlanningModel({ mode: "report", context });
+    sections = normalizeSections(data, context);
+  } catch (error) {
+    await wait(520);
+  }
+
+  await holdMinimum(startTime, REPORT_MIN_DELAY_MS);
+  if (!requestStillCurrent("report", requestId)) {
+    return;
+  }
+
+  setAdviceModelState("输出结构化建议");
+  await renderReportSections(sections, requestId);
+  if (!requestStillCurrent("report", requestId)) {
+    return;
+  }
+
+  adviceBusy = false;
   adviceGenerated = true;
-  adviceOutput.classList.remove("is-pending");
-  adviceOutput.innerHTML = "";
-  adviceItems().forEach((item) => {
-    const block = document.createElement("section");
-    const title = document.createElement("h3");
-    const body = document.createElement("p");
-    title.textContent = item.title;
-    body.textContent = item.body;
-    block.append(title, body);
-    adviceOutput.appendChild(block);
-  });
+  setAdviceModelState("建议已生成");
+  setAdviceAnswerState("可继续追问");
+  syncAdviceShell(currentCity());
 }
 
-function answerPlanningQuestion(question) {
-  const city = currentCity();
-  const normalized = question.trim();
-  const focus = viewFocus();
-  if (!normalized) {
-    return "请输入需要判断的规划问题。";
+async function askPlanningQuestion() {
+  if (!adviceAnswer) {
+    return;
   }
+
+  const question = adviceInput?.value.trim() ?? "";
+  const requestId = answerRequestId + 1;
+  answerRequestId = requestId;
+
+  if (!question) {
+    adviceAnswer.classList.remove("is-thinking");
+    adviceAnswer.innerHTML = "<p>请输入需要判断的规划问题。</p>";
+    setAdviceAnswerState("等待问题");
+    return;
+  }
+
   if (!hasRun || !adviceGenerated) {
-    return "先运行当前视图并读取结果，再进行追问。";
+    adviceAnswer.classList.remove("is-thinking");
+    adviceAnswer.innerHTML = "<p>先运行当前视图，并等结构化建议生成后再追问。</p>";
+    setAdviceAnswerState("等待结果");
+    return;
   }
-  if (normalized.includes("优先") || normalized.includes("近期") || normalized.includes("顺序")) {
-    return `${city.name}当前${focus}结果下，优先事项应从高缺口且连续成片的网格开始，再处理边缘承压片区，最后把富余设施纳入跨片区调剂。`;
+
+  answerBusy = true;
+  setAdviceAnswerState("读取当前上下文");
+  setThinkingState(adviceAnswer, "small");
+  const context = planningContext(question);
+  const startTime = performance.now();
+  let answer = fallbackAnswer(context, question);
+
+  try {
+    await wait(260);
+    setAdviceAnswerState("组织回答");
+    const data = await requestPlanningModel({ mode: "question", context, question });
+    answer = normalizeAnswer(data, context, question);
+  } catch (error) {
+    await wait(500);
   }
-  if (normalized.includes("设施") || normalized.includes("改造") || normalized.includes("增设")) {
-    return `建议先校核现有避难设施容量与开放条件。容量不足但可达性好的设施优先改造，服务空白片区再考虑新增小型避难节点。`;
+
+  await holdMinimum(startTime, ANSWER_MIN_DELAY_MS);
+  if (!requestStillCurrent("answer", requestId)) {
+    return;
   }
-  if (normalized.includes("平急") || normalized.includes("公共设施")) {
-    return `平急两用应优先落在高需求网格周边的学校、体育馆、社区服务中心和大型公共建筑，并明确开放时段、容量转换和管理责任。`;
+
+  adviceAnswer.classList.remove("is-thinking");
+  adviceAnswer.innerHTML = "";
+  const paragraph = document.createElement("p");
+  adviceAnswer.appendChild(paragraph);
+  setAdviceAnswerState("输出回答");
+  await typeText(paragraph, answer, "answer", requestId);
+  if (!requestStillCurrent("answer", requestId)) {
+    return;
   }
-  if (normalized.includes("人口") || normalized.includes("流动") || normalized.includes("需求")) {
-    return `${populationMix(city)}。规划判断应采用灾时移动后的动态需求，避免只按静态常住人口分配避难资源。`;
-  }
-  return `${city.name}的建议应围绕三件事展开：先确认高缺口片区，再匹配可改造设施，最后按收益和实施难度排出近期项目顺序。`;
+  answerBusy = false;
+  setAdviceAnswerState("可继续追问");
 }
 
 function updateSimMedia({ restart = false } = {}) {
@@ -448,14 +750,7 @@ adviceButton?.addEventListener("click", () => {
 
 adviceForm?.addEventListener("submit", (event) => {
   event.preventDefault();
-  if (!adviceAnswer) {
-    return;
-  }
-  const answer = answerPlanningQuestion(adviceInput?.value ?? "");
-  adviceAnswer.innerHTML = "";
-  const paragraph = document.createElement("p");
-  paragraph.textContent = answer;
-  adviceAnswer.appendChild(paragraph);
+  askPlanningQuestion();
 });
 
 syncButton?.addEventListener("click", () => {
