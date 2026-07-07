@@ -1,5 +1,7 @@
 const DEFAULT_MODEL = "Qwen/Qwen2.5-72B-Instruct";
 const HF_ROUTER_URL = "https://router.huggingface.co/v1/chat/completions";
+const PUBLIC_MODEL = "openai-fast";
+const PUBLIC_MODEL_URL = "https://text.pollinations.ai/openai";
 
 function setCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -32,8 +34,9 @@ function systemPrompt(mode) {
   return [
     "你是城市内涝应急避难设施供需匹配模型的规划分析助手。",
     "你的回答必须基于用户提供的当前城市、视图、网格、人口比例、IGP、步数和结果摘要。",
-    "表达要像国土空间规划和应急避难设施配置评估，不要写成产品介绍，不要自称模型，不要说仅供演示。",
+    "表达要像国土空间规划和应急避难设施配置评估，不要写成产品介绍，不要自称模型，不要说明用途限制。",
     "核心卖点是先模拟灾时人群移动和动态避难需求，再判断设施短板和配置优先事项。",
+    "建议必须围绕避难设施容量、短板片区、公共建筑转换、平急两用和实施优先级，不要写公共交通、医疗、商业建设等无关方向。",
     "不要使用空泛词，不要输出 Markdown。",
     `只返回 JSON，格式为 ${outputShape}`,
   ].join("\n");
@@ -77,12 +80,6 @@ module.exports = async function handler(req, res) {
   }
 
   const token = process.env.HF_TOKEN;
-  if (!token) {
-    res.statusCode = 500;
-    res.json({ error: "HF_TOKEN_NOT_CONFIGURED" });
-    return;
-  }
-
   let payload;
   try {
     payload = await readJson(req);
@@ -98,7 +95,7 @@ module.exports = async function handler(req, res) {
   const model = process.env.HF_MODEL || DEFAULT_MODEL;
 
   const body = {
-    model,
+    model: token ? model : PUBLIC_MODEL,
     messages: [
       { role: "system", content: systemPrompt(mode) },
       {
@@ -111,11 +108,11 @@ module.exports = async function handler(req, res) {
   };
 
   try {
-    const response = await fetch(process.env.HF_ROUTER_URL || HF_ROUTER_URL, {
+    const response = await fetch(token ? process.env.HF_ROUTER_URL || HF_ROUTER_URL : PUBLIC_MODEL_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(body),
     });

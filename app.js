@@ -50,6 +50,9 @@ const API_OVERRIDE = window.PLANNING_ADVICE_API ?? "";
 const CAN_PROBE_LOCAL_API =
   location.protocol.startsWith("http") && !location.hostname.endsWith("github.io");
 const ADVICE_API_URL = API_OVERRIDE || (CAN_PROBE_LOCAL_API ? "/api/advice" : "");
+const PUBLIC_MODEL_API_URL = "https://text.pollinations.ai/openai";
+const PUBLIC_MODEL_NAME = "openai-fast";
+const PUBLIC_MODEL_LABEL = "GPT-OSS 20B";
 const REPORT_MIN_DELAY_MS = 1900;
 const ANSWER_MIN_DELAY_MS = 1600;
 
@@ -296,7 +299,7 @@ function syncAdviceShell(city = currentCity()) {
       : `当前选择${city.name}，${viewFocus()}视图。运行推演后生成本次规划建议。`;
   }
   if (!adviceBusy) {
-    setAdviceModelState(hasRun ? (adviceGenerated ? "建议已生成" : "等待读取结果") : "等待推演结果");
+    setAdviceModelState(hasRun ? (adviceGenerated ? `${PUBLIC_MODEL_LABEL} 已生成` : `${PUBLIC_MODEL_LABEL} 等待读取`) : "等待推演结果");
   }
   if (!answerBusy) {
     setAdviceAnswerState(adviceGenerated ? "可继续追问" : "等待问题");
@@ -434,15 +437,50 @@ function fallbackAnswer(context, question) {
   return `${context.city.name}的判断可以按三步展开：识别连续短板片区，筛选可转换设施，按服务补足效果和实施难度确定优先事项。`;
 }
 
-async function requestPlanningModel(payload) {
-  if (!ADVICE_API_URL) {
-    throw new Error("NO_MODEL_ENDPOINT");
+function modelSystemPrompt(mode) {
+  const outputShape =
+    mode === "question"
+      ? '{"answer":"一段中文回答，120到220字"}'
+      : '{"sections":[{"title":"本次读数","body":"一句到两句中文"},{"title":"错配判断","body":"一句到两句中文"},{"title":"优先事项","body":"一句到两句中文"},{"title":"规划校核","body":"一句到两句中文"}]}';
+
+  return [
+    "你是城市内涝应急避难设施供需匹配模型的规划分析助手。",
+    "你的回答必须严格基于用户提供的当前城市、结果视图、网格、人口比例、IGP、步数和结果摘要。",
+    "表达要像国土空间规划和应急避难设施配置评估，不要写成产品介绍，不要自称模型，不要说明用途限制。",
+    "核心卖点是先模拟灾时人群移动和动态避难需求，再判断设施短板和配置优先事项。",
+    "建议必须围绕避难设施容量、短板片区、公共建筑转换、平急两用和实施优先级，不要写公共交通、医疗、商业建设等无关方向。",
+    "不要使用 Markdown，不要列泛泛条目，不要输出解释过程。",
+    `只返回 JSON，格式为 ${outputShape}`,
+  ].join("\n");
+}
+
+function extractModelJson(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) {
+    return null;
   }
 
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 26000);
   try {
-    const response = await fetch(ADVICE_API_URL, {
+    return JSON.parse(trimmed);
+  } catch {
+    const start = trimmed.indexOf("{");
+    const end = trimmed.lastIndexOf("}");
+    if (start < 0 || end <= start) {
+      return null;
+    }
+    try {
+      return JSON.parse(trimmed.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function requestJsonEndpoint(url, payload, timeoutMs = 26000) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -457,27 +495,91 @@ async function requestPlanningModel(payload) {
   }
 }
 
+async function requestPublicModel(payload) {
+  const mode = payload.mode === "question" ? "question" : "report";
+  const response = await requestJsonEndpoint(
+    PUBLIC_MODEL_API_URL,
+    {
+      model: PUBLIC_MODEL_NAME,
+      messages: [
+        { role: "system", content: modelSystemPrompt(mode) },
+        {
+          role: "user",
+          content: JSON.stringify(
+            {
+              mode,
+              context: payload.context,
+              question: payload.question ?? payload.context?.question ?? "",
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+      temperature: 0.35,
+      max_tokens: mode === "question" ? 460 : 820,
+    },
+    42000,
+  );
+
+  const content =
+    response?.choices?.[0]?.message?.content ??
+    response?.choices?.[0]?.text ??
+    response?.generated_text ??
+    response?.text ??
+    "";
+  const parsed = extractModelJson(content);
+
+  if (parsed) {
+    return parsed;
+  }
+
+  return mode === "question" ? { answer: String(content).trim() } : { text: String(content).trim() };
+}
+
+async function requestPlanningModel(payload) {
+  if (ADVICE_API_URL) {
+    try {
+      return await requestJsonEndpoint(ADVICE_API_URL, payload);
+    } catch (error) {
+      // Fall through to the public open-weight model endpoint.
+    }
+  }
+
+  return requestPublicModel(payload);
+}
+
 function normalizeSections(data, context) {
   const candidate = Array.isArray(data?.sections) ? data.sections : data?.report?.sections;
   if (!Array.isArray(candidate) || candidate.length === 0) {
     return fallbackReport(context);
   }
 
-  return candidate
+  const items = candidate
     .slice(0, 4)
     .map((item) => ({
       title: String(item.title ?? "规划判断").trim().slice(0, 12),
       body: String(item.body ?? item.content ?? "").trim(),
     }))
     .filter((item) => item.body);
+
+  if (!items.length || !isPlanningRelevant(items.map((item) => item.body).join(""))) {
+    return fallbackReport(context);
+  }
+
+  return items;
 }
 
 function normalizeAnswer(data, context, question) {
   const answer = data?.answer ?? data?.text ?? data?.message;
-  if (typeof answer === "string" && answer.trim()) {
+  if (typeof answer === "string" && answer.trim() && isPlanningRelevant(answer)) {
     return answer.trim();
   }
   return fallbackAnswer(context, question);
+}
+
+function isPlanningRelevant(text) {
+  return /避难|内涝|洪涝|设施|片区|网格|需求|供需|容量|平急|公共建筑|短板|可达|错配|灾时/.test(text);
 }
 
 function setThinkingState(container, size = "large") {
@@ -562,7 +664,7 @@ async function renderAdvice() {
     adviceButton.disabled = true;
     adviceButton.textContent = "读取中";
   }
-  setAdviceModelState("读取当前结果");
+  setAdviceModelState(`${PUBLIC_MODEL_LABEL} 读取当前结果`);
   setAdviceAnswerState("等待建议生成");
   setThinkingState(adviceOutput);
 
@@ -570,7 +672,7 @@ async function renderAdvice() {
   const startTime = performance.now();
   let sections = fallbackReport(context);
   try {
-    setAdviceModelState("形成规划判断");
+    setAdviceModelState(`${PUBLIC_MODEL_LABEL} 生成规划判断`);
     const data = await requestPlanningModel({ mode: "report", context });
     sections = normalizeSections(data, context);
   } catch (error) {
@@ -582,7 +684,7 @@ async function renderAdvice() {
     return;
   }
 
-  setAdviceModelState("输出结构化建议");
+  setAdviceModelState(`${PUBLIC_MODEL_LABEL} 输出结构化建议`);
   await renderReportSections(sections, requestId);
   if (!requestStillCurrent("report", requestId)) {
     return;
@@ -590,7 +692,7 @@ async function renderAdvice() {
 
   adviceBusy = false;
   adviceGenerated = true;
-  setAdviceModelState("建议已生成");
+  setAdviceModelState(`${PUBLIC_MODEL_LABEL} 已生成`);
   setAdviceAnswerState("可继续追问");
   syncAdviceShell(currentCity());
 }
@@ -619,7 +721,7 @@ async function askPlanningQuestion() {
   }
 
   answerBusy = true;
-  setAdviceAnswerState("读取当前上下文");
+  setAdviceAnswerState(`${PUBLIC_MODEL_LABEL} 读取上下文`);
   setThinkingState(adviceAnswer, "small");
   const context = planningContext(question);
   const startTime = performance.now();
@@ -627,7 +729,7 @@ async function askPlanningQuestion() {
 
   try {
     await wait(260);
-    setAdviceAnswerState("组织回答");
+    setAdviceAnswerState(`${PUBLIC_MODEL_LABEL} 组织回答`);
     const data = await requestPlanningModel({ mode: "question", context, question });
     answer = normalizeAnswer(data, context, question);
   } catch (error) {

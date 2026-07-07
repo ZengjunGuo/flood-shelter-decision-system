@@ -1,19 +1,27 @@
 # 开源模型接入与公开部署
 
-这个页面可以继续作为静态站点公开预览。若要让“规划建议”调用开源大模型，需要把同一套代码部署到支持 Serverless Function 的平台，例如 Vercel。
+这个页面可以继续作为静态站点公开预览。“规划建议”会优先请求站内 `/api/advice`，如果当前环境没有后端函数，则直接请求 Pollinations 的 OpenAI-compatible 接口，调用匿名可用的 `openai-fast` 模型。
 
-## 为什么不能直接放在 GitHub Pages
+## 当前公网预览
 
-GitHub Pages 只托管静态文件。浏览器里不能放模型 API token，否则所有访问者都能在开发者工具里看到密钥。当前代码保留了静态后备逻辑：没有后端接口时，页面仍能读取当前城市、视图和推演参数生成建议；配置后端后，会自动调用 `/api/advice`。
+GitHub Pages 只托管静态文件，所以不能保存私有模型 token。当前版本不依赖私有 token，而是从浏览器直接访问公开模型接口：
+
+- Endpoint: `https://text.pollinations.ai/openai`
+- Model: `openai-fast`
+- 模型说明：GPT-OSS 20B reasoning LLM
+
+如果公网模型接口超时或限流，页面会退回本地后备分析，保证系统不空白。
 
 ## Vercel 部署步骤
 
+如果需要更稳定的模型调用，可以把同一套代码部署到支持 Serverless Function 的平台，例如 Vercel。
+
 1. 把仓库导入 Vercel。
-2. 在 Project Settings 的 Environment Variables 添加：
+2. 可选：在 Project Settings 的 Environment Variables 添加：
    - `HF_TOKEN`: Hugging Face token。
    - `HF_MODEL`: 可选，默认 `Qwen/Qwen2.5-72B-Instruct`。
 3. 重新部署。
-4. 访问 Vercel 生成的公网地址，点击“运行推演”后，建议模块会把当前结果上下文发送到 `/api/advice`。
+4. 访问 Vercel 生成的公网地址，点击“运行推演”后，建议模块会把当前结果上下文发送到 `/api/advice`。如果没有设置 `HF_TOKEN`，后端会继续调用公开 GPT-OSS 20B 接口。
 
 ## 前端发送给模型的上下文
 
