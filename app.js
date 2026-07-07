@@ -45,9 +45,9 @@ const adviceAnswerState = document.querySelector("[data-advice-answer-state]");
 const IGP_LABEL = "本地5x5 / 外来3x3";
 const IGP_COMPACT = "5x5/3x3";
 const SIM_TIMING = {
-  combined: { frames: 56, frameMs: 160 },
-  agent: { frames: 30, frameMs: 300 },
-  heatmap: { frames: 30, frameMs: 300 },
+  combined: { frames: 56, frameMs: 160, maxStep: 49, preludeFrames: 6 },
+  agent: { frames: 30, frameMs: 300, maxStep: 29, preludeFrames: 0 },
+  heatmap: { frames: 30, frameMs: 300, maxStep: 29, preludeFrames: 0 },
 };
 const API_OVERRIDE = window.PLANNING_ADVICE_API ?? "";
 const CAN_PROBE_LOCAL_API =
@@ -193,6 +193,19 @@ function currentSimTiming() {
   return SIM_TIMING[selectedSimView] ?? SIM_TIMING.combined;
 }
 
+function stepForFrame(frameIndex) {
+  const timing = currentSimTiming();
+  const step = frameIndex - timing.preludeFrames;
+  if (step < 0) {
+    return null;
+  }
+  return Math.min(step, timing.maxStep);
+}
+
+function stepText() {
+  return currentStep === null ? "处理中" : String(currentStep);
+}
+
 function exposureLevel(city = currentCity()) {
   const area = city.floodAreaKm2 ?? 0;
   if (area >= 3000) {
@@ -220,7 +233,7 @@ function viewFocus() {
 function setStep(value) {
   currentStep = value;
   if (analysisSteps) {
-    analysisSteps.textContent = String(value);
+    analysisSteps.textContent = stepText();
   }
 }
 
@@ -233,12 +246,13 @@ function stopStepTicker() {
 
 function startStepTicker() {
   stopStepTicker();
-  setStep(1);
+  let frameIndex = 0;
   const timing = currentSimTiming();
+  setStep(stepForFrame(frameIndex));
   stepTimer = window.setInterval(() => {
-    const nextStep = Math.min(currentStep + 1, timing.frames);
-    setStep(nextStep);
-    if (nextStep >= timing.frames) {
+    frameIndex += 1;
+    setStep(stepForFrame(frameIndex));
+    if (frameIndex >= timing.frames - 1) {
       completeSimulation();
     }
   }, timing.frameMs);
@@ -330,7 +344,7 @@ function syncAdviceShell(city = currentCity()) {
     adviceContext.textContent = isRunComplete
       ? `${city.name}已完成${viewFocus()}推演，当前步数 ${currentStep}，潜在淹没区 ${formatDecimal(city.floodAreaKm2 ?? 0)} km²。`
       : hasRun
-        ? `${city.name}${viewFocus()}推演进行中，当前步数 ${currentStep}。`
+        ? `${city.name}${viewFocus()}推演进行中，当前步数 ${stepText()}。`
         : `当前选择${city.name}，${viewFocus()}视图。人口规模 ${formatDecimal(city.populationWan ?? 0)} 万，运行推演后生成规划建议。`;
   }
   if (!adviceBusy) {
@@ -900,7 +914,7 @@ function updateSimMedia({ restart = false } = {}) {
 function completeSimulation() {
   stopStepTicker();
   isRunComplete = true;
-  setStep(currentSimTiming().frames);
+  setStep(currentSimTiming().maxStep);
   syncReadout(currentCity());
   renderAdvice();
 }
