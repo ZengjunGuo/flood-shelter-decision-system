@@ -44,7 +44,11 @@ const adviceAnswerState = document.querySelector("[data-advice-answer-state]");
 
 const IGP_LABEL = "本地5x5 / 外来3x3";
 const IGP_COMPACT = "5x5/3x3";
-const STEP_INTERVAL_MS = 185;
+const SIM_TIMING = {
+  combined: { frames: 56, frameMs: 160 },
+  agent: { frames: 30, frameMs: 300 },
+  heatmap: { frames: 30, frameMs: 300 },
+};
 const API_OVERRIDE = window.PLANNING_ADVICE_API ?? "";
 const CAN_PROBE_LOCAL_API =
   location.protocol.startsWith("http") && !location.hostname.endsWith("github.io");
@@ -81,6 +85,7 @@ const cities = [
 
 let selectedSimView = "combined";
 let hasRun = false;
+let isRunComplete = false;
 let currentStep = 0;
 let stepTimer = null;
 let adviceGenerated = false;
@@ -184,8 +189,8 @@ function populationMix(city = currentCity()) {
   return "本地与外来人群接近均衡";
 }
 
-function cityMaxStep(city = currentCity()) {
-  return city.iterations ?? 49;
+function currentSimTiming() {
+  return SIM_TIMING[selectedSimView] ?? SIM_TIMING.combined;
 }
 
 function exposureLevel(city = currentCity()) {
@@ -215,7 +220,7 @@ function viewFocus() {
 function setStep(value) {
   currentStep = value;
   if (analysisSteps) {
-    analysisSteps.textContent = `${value}/${cityMaxStep()}`;
+    analysisSteps.textContent = String(value);
   }
 }
 
@@ -229,10 +234,14 @@ function stopStepTicker() {
 function startStepTicker() {
   stopStepTicker();
   setStep(1);
+  const timing = currentSimTiming();
   stepTimer = window.setInterval(() => {
-    const maxStep = cityMaxStep();
-    setStep(currentStep >= maxStep ? 1 : currentStep + 1);
-  }, STEP_INTERVAL_MS);
+    const nextStep = Math.min(currentStep + 1, timing.frames);
+    setStep(nextStep);
+    if (nextStep >= timing.frames) {
+      completeSimulation();
+    }
+  }, timing.frameMs);
 }
 
 function currentViewLabel() {
@@ -261,7 +270,7 @@ function simMediaPath(city, view) {
 
 function syncReadout(city) {
   const viewLabel = currentViewLabel();
-  const statusLabel = hasRun ? "运行中" : "待运行";
+  const statusLabel = !hasRun ? "待运行" : isRunComplete ? "已完成" : "运行中";
 
   if (activeCity) activeCity.textContent = city.name;
   if (activeView) activeView.textContent = viewLabel;
@@ -316,21 +325,25 @@ function syncAdviceShell(city = currentCity()) {
   if (adviceCity) adviceCity.textContent = city.name;
   if (adviceView) adviceView.textContent = viewFocus();
   if (adviceGrid) adviceGrid.textContent = gridDisplayValue(city);
-  if (adviceStatus) adviceStatus.textContent = hasRun ? "已运行" : "待运行";
+  if (adviceStatus) adviceStatus.textContent = !hasRun ? "待运行" : isRunComplete ? "已完成" : "运行中";
   if (adviceContext) {
-    adviceContext.textContent = hasRun
-      ? `${city.name}已完成${viewFocus()}推演，迭代 ${cityMaxStep(city)} 次，潜在淹没区 ${formatDecimal(city.floodAreaKm2 ?? 0)} km²。`
-      : `当前选择${city.name}，${viewFocus()}视图。人口规模 ${formatDecimal(city.populationWan ?? 0)} 万，运行推演后生成规划建议。`;
+    adviceContext.textContent = isRunComplete
+      ? `${city.name}已完成${viewFocus()}推演，当前步数 ${currentStep}，潜在淹没区 ${formatDecimal(city.floodAreaKm2 ?? 0)} km²。`
+      : hasRun
+        ? `${city.name}${viewFocus()}推演进行中，当前步数 ${currentStep}。`
+        : `当前选择${city.name}，${viewFocus()}视图。人口规模 ${formatDecimal(city.populationWan ?? 0)} 万，运行推演后生成规划建议。`;
   }
   if (!adviceBusy) {
-    setAdviceModelState(hasRun ? (adviceGenerated ? `${PUBLIC_MODEL_LABEL} 已生成` : `${PUBLIC_MODEL_LABEL} 等待读取`) : "等待推演结果");
+    setAdviceModelState(
+      isRunComplete ? (adviceGenerated ? `${PUBLIC_MODEL_LABEL} 已生成` : `${PUBLIC_MODEL_LABEL} 等待读取`) : "等待推演结果",
+    );
   }
   if (!answerBusy) {
     setAdviceAnswerState(adviceGenerated ? "可继续追问" : "等待问题");
   }
   if (adviceButton) {
-    adviceButton.disabled = !hasRun || adviceBusy;
-    adviceButton.textContent = !hasRun ? "等待推演" : adviceGenerated ? "重新读取" : "读取当前结果";
+    adviceButton.disabled = !isRunComplete || adviceBusy;
+    adviceButton.textContent = !hasRun ? "等待推演" : !isRunComplete ? "推演中" : adviceGenerated ? "重新读取" : "读取当前结果";
   }
 }
 
@@ -338,7 +351,9 @@ function resetAdviceOutput() {
   if (adviceOutput) {
     adviceOutput.classList.remove("is-thinking");
     adviceOutput.classList.add("is-pending");
-    adviceOutput.innerHTML = "<p>先在上方选择城市和结果视图，点击运行推演后生成本次规划建议。</p>";
+    adviceOutput.innerHTML = hasRun
+      ? "<p>当前推演正在运行，完成后读取本次错配结果。</p>"
+      : "<p>先在上方选择城市和结果视图，点击运行推演后生成本次规划建议。</p>";
   }
   if (adviceAnswer) {
     adviceAnswer.classList.remove("is-thinking");
@@ -414,7 +429,8 @@ function planningContext(question = "") {
       igp: IGP_LABEL,
       rainfall: "百年一遇",
       step: currentStep,
-      maxStep: cityMaxStep(city),
+      frameCount: currentSimTiming().frames,
+      runStatus: isRunComplete ? "已完成" : hasRun ? "运行中" : "待运行",
       populationWan: city.populationWan,
       floodAreaKm2: city.floodAreaKm2,
     },
@@ -429,7 +445,7 @@ function fallbackReport(context = planningContext()) {
   return [
     {
       title: "本次读数",
-      body: `${context.city.name}当前视图为${context.view.label}，迭代 ${context.parameters.maxStep} 次，人口规模 ${population} 万，潜在淹没区 ${floodArea} km²。${context.result.pattern}`,
+      body: `${context.city.name}当前视图为${context.view.label}，推演停在第 ${context.parameters.step} 步，人口规模 ${population} 万，潜在淹没区 ${floodArea} km²。${context.result.pattern}`,
     },
     {
       title: "错配判断",
@@ -499,7 +515,7 @@ function modelSystemPrompt(mode) {
 
   const commonRules = [
     "你是城市内涝应急避难设施供需匹配模型的规划分析助手。",
-    "你的回答必须严格基于用户提供的当前城市、结果视图、网格、人口比例、IGP、迭代次数、人口规模、潜在淹没区和结果摘要。",
+    "你的回答必须严格基于用户提供的当前城市、结果视图、网格、人口比例、IGP、当前步数、人口规模、潜在淹没区和结果摘要。",
     "表达要像国土空间规划和应急避难设施配置评估，不要写成产品介绍，不要自称模型，不要说明用途限制。",
     "核心卖点是先模拟灾时人群移动和动态避难需求，再判断设施短板和配置优先事项。",
     "建议必须围绕避难设施容量、短板片区、公共建筑转换、平急两用和实施优先级，不要写公共交通、医疗、商业建设等无关方向。",
@@ -719,6 +735,11 @@ async function renderAdvice() {
     return;
   }
 
+  if (!isRunComplete) {
+    syncAdviceShell(currentCity());
+    return;
+  }
+
   const requestId = adviceRequestId + 1;
   adviceRequestId = requestId;
   adviceBusy = true;
@@ -798,7 +819,7 @@ async function askPlanningQuestion() {
     return;
   }
 
-  if (!hasRun || !adviceGenerated) {
+  if (!isRunComplete || !adviceGenerated) {
     adviceAnswer.classList.remove("is-thinking");
     adviceAnswer.innerHTML = "<p>先运行当前视图，并等结构化建议生成后再追问。</p>";
     setAdviceAnswerState("等待结果");
@@ -848,6 +869,7 @@ function updateSimMedia({ restart = false } = {}) {
 
   if (!hasRun) {
     stopStepTicker();
+    isRunComplete = false;
     if (simIdle) {
       simIdle.hidden = false;
     }
@@ -869,12 +891,23 @@ function updateSimMedia({ restart = false } = {}) {
     simOutput.src = restart ? `${mediaPath}?t=${Date.now()}` : mediaPath;
     simOutput.alt = `${city.name}灾时人群移动${currentViewLabel()}视图`;
   }
-  startStepTicker();
+  if (restart || !isRunComplete) {
+    startStepTicker();
+  }
   syncReadout(city);
+}
+
+function completeSimulation() {
+  stopStepTicker();
+  isRunComplete = true;
+  setStep(currentSimTiming().frames);
+  syncReadout(currentCity());
+  renderAdvice();
 }
 
 function setCityDefaults() {
   hasRun = false;
+  isRunComplete = false;
   updateSimMedia();
   clearAdvice();
 }
@@ -915,6 +948,7 @@ simViewButtons.forEach((button) => {
 
     if (changedView) {
       hasRun = false;
+      isRunComplete = false;
       updateSimMedia();
       clearAdvice();
       return;
@@ -927,8 +961,9 @@ simViewButtons.forEach((button) => {
 simForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   hasRun = true;
+  isRunComplete = false;
+  clearAdvice();
   updateSimMedia({ restart: true });
-  renderAdvice();
 });
 
 adviceButton?.addEventListener("click", () => {
