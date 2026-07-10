@@ -2,7 +2,6 @@ const nav = document.querySelector("[data-nav]");
 const menuToggle = document.querySelector("[data-menu-toggle]");
 const menuClose = document.querySelector("[data-menu-close]");
 const syncButton = document.querySelector("[data-sync]");
-const copyButton = document.querySelector("[data-copy]");
 const viewButtons = document.querySelectorAll("[data-view]");
 const statePanels = document.querySelectorAll("[data-state]");
 const citySelect = document.querySelector("[data-city-select]");
@@ -55,7 +54,7 @@ const CAN_PROBE_LOCAL_API =
 const ADVICE_API_URL = API_OVERRIDE || (CAN_PROBE_LOCAL_API ? "/api/advice" : "");
 const PUBLIC_MODEL_API_URL = "https://text.pollinations.ai/openai";
 const PUBLIC_MODEL_NAME = "openai-fast";
-const PUBLIC_MODEL_LABEL = "GPT-OSS 20B";
+let activeModelLabel = window.PLANNING_MODEL_LABEL ?? "规划语言模型";
 const REPORT_MIN_DELAY_MS = 1900;
 const ANSWER_MIN_DELAY_MS = 1600;
 
@@ -320,6 +319,13 @@ function setAdviceAnswerState(text) {
   }
 }
 
+function captureModelLabel(data) {
+  const label = String(data?._meta?.model || "").trim();
+  if (label) {
+    activeModelLabel = label.slice(0, 48);
+  }
+}
+
 function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -349,7 +355,7 @@ function syncAdviceShell(city = currentCity()) {
   }
   if (!adviceBusy) {
     setAdviceModelState(
-      isRunComplete ? (adviceGenerated ? `${PUBLIC_MODEL_LABEL} 已生成` : `${PUBLIC_MODEL_LABEL} 等待读取`) : "等待推演结果",
+      isRunComplete ? (adviceGenerated ? `${activeModelLabel} 已生成` : `${activeModelLabel} 等待分析`) : "等待推演结果",
     );
   }
   if (!answerBusy) {
@@ -357,7 +363,7 @@ function syncAdviceShell(city = currentCity()) {
   }
   if (adviceButton) {
     adviceButton.disabled = !isRunComplete || adviceBusy;
-    adviceButton.textContent = !hasRun ? "等待推演" : !isRunComplete ? "推演中" : adviceGenerated ? "重新读取" : "读取当前结果";
+    adviceButton.textContent = !hasRun ? "等待推演" : !isRunComplete ? "推演中" : adviceGenerated ? "重新分析" : "分析当前结果";
   }
 }
 
@@ -760,9 +766,9 @@ async function renderAdvice() {
   adviceGenerated = false;
   if (adviceButton) {
     adviceButton.disabled = true;
-    adviceButton.textContent = "读取中";
+    adviceButton.textContent = "分析中";
   }
-  setAdviceModelState(`${PUBLIC_MODEL_LABEL} 读取当前结果`);
+  setAdviceModelState(`${activeModelLabel} 读取推演结果`);
   setAdviceAnswerState("等待建议生成");
   setThinkingState(adviceOutput);
 
@@ -770,8 +776,9 @@ async function renderAdvice() {
   const startTime = performance.now();
   let sections = fallbackReport(context);
   try {
-    setAdviceModelState(`${PUBLIC_MODEL_LABEL} 生成规划判断`);
+    setAdviceModelState(`${activeModelLabel} 形成规划判断`);
     const data = await requestPlanningModel({ mode: "report", context });
+    captureModelLabel(data);
     sections = normalizeSections(data, context);
   } catch (error) {
     await wait(520);
@@ -782,7 +789,7 @@ async function renderAdvice() {
     return;
   }
 
-  setAdviceModelState(`${PUBLIC_MODEL_LABEL} 输出结构化建议`);
+  setAdviceModelState(`${activeModelLabel} 输出结构化建议`);
   await renderReportSections(sections, requestId);
   if (!requestStillCurrent("report", requestId)) {
     return;
@@ -790,7 +797,7 @@ async function renderAdvice() {
 
   adviceBusy = false;
   adviceGenerated = true;
-  setAdviceModelState(`${PUBLIC_MODEL_LABEL} 已生成`);
+  setAdviceModelState(`${activeModelLabel} 已生成`);
   setAdviceAnswerState("可继续追问");
   syncAdviceShell(currentCity());
 }
@@ -841,7 +848,7 @@ async function askPlanningQuestion() {
   }
 
   answerBusy = true;
-  setAdviceAnswerState(`${PUBLIC_MODEL_LABEL} 读取上下文`);
+  setAdviceAnswerState(`${activeModelLabel} 读取上下文`);
   setThinkingState(adviceAnswer, "small");
   const context = planningContext(question);
   const startTime = performance.now();
@@ -849,8 +856,9 @@ async function askPlanningQuestion() {
 
   try {
     await wait(260);
-    setAdviceAnswerState(`${PUBLIC_MODEL_LABEL} 组织回答`);
+    setAdviceAnswerState(`${activeModelLabel} 组织回答`);
     const data = await requestPlanningModel({ mode: "question", context, question });
+    captureModelLabel(data);
     answer = normalizeAnswer(data, context, question);
   } catch (error) {
     await wait(500);
@@ -994,23 +1002,6 @@ syncButton?.addEventListener("click", () => {
   window.setTimeout(() => {
     setVisibleState("plan");
   }, 850);
-});
-
-copyButton?.addEventListener("click", async () => {
-  const command = document.querySelector(".terminal code")?.textContent?.trim();
-  if (!command) {
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(command);
-    copyButton.textContent = "已复制";
-    window.setTimeout(() => {
-      copyButton.textContent = "复制";
-    }, 1000);
-  } catch {
-    copyButton.textContent = "手动复制";
-  }
 });
 
 document.addEventListener("keydown", (event) => {

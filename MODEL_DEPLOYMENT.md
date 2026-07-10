@@ -1,36 +1,73 @@
-# 开源模型接入与公开部署
+# 规划语言模型接入与部署
 
-这个页面可以继续作为静态站点公开预览。“规划建议”会优先请求站内 `/api/advice`，如果当前环境没有后端函数，则直接请求 Pollinations 的 OpenAI-compatible 接口，调用匿名可用的 `openai-fast` 模型。
+网站已把模型调用统一到 OpenAI-compatible `chat/completions` 接口。DeepSeek、Qwen、Ollama、vLLM 或其他兼容服务只需要替换环境变量，不需要修改前端业务代码。
 
-## 当前公网预览
+## 接口选择顺序
 
-GitHub Pages 只托管静态文件，所以不能保存私有模型 token。当前版本不依赖私有 token，而是从浏览器直接访问公开模型接口：
+`api/advice.js` 按以下顺序选择模型：
 
-- Endpoint: `https://text.pollinations.ai/openai`
-- Model: `openai-fast`
-- 模型说明：GPT-OSS 20B reasoning LLM
+1. `LLM_ENDPOINT` 或 `LLM_BASE_URL` 指定的自建、云端接口。
+2. 已配置 `HF_TOKEN` 时使用 Hugging Face Router。
+3. 未配置后端时使用公开模型接口，确保 GitHub Pages 预览不出现空白。
 
-如果公网模型接口超时或限流，页面会退回本地后备分析，保证系统不空白。
+可配置变量：
 
-## Vercel 部署步骤
+- `LLM_ENDPOINT`: 完整的 chat completions 地址，例如 `http://127.0.0.1:11434/v1/chat/completions`。
+- `LLM_BASE_URL`: OpenAI-compatible 服务根地址，例如 `http://127.0.0.1:8000/v1`。
+- `LLM_MODEL`: 服务中的模型名称。
+- `LLM_API_KEY`: 云端或受保护服务的密钥；Ollama 本机运行时可不填。
+- `LLM_LABEL`: 记录在接口返回中的显示名称。
 
-如果需要更稳定的模型调用，可以把同一套代码部署到支持 Serverless Function 的平台，例如 Vercel。
+## 本机运行 Qwen
 
-1. 把仓库导入 Vercel。
-2. 可选：在 Project Settings 的 Environment Variables 添加：
-   - `HF_TOKEN`: Hugging Face token。
-   - `HF_MODEL`: 可选，默认 `Qwen/Qwen2.5-72B-Instruct`。
-3. 重新部署。
-4. 访问 Vercel 生成的公网地址，点击“运行推演”后，建议模块会把当前结果上下文发送到 `/api/advice`。如果没有设置 `HF_TOKEN`，后端会继续调用公开 GPT-OSS 20B 接口。
+Ollama 适合单机快速部署：
 
-## 前端发送给模型的上下文
+```bash
+ollama pull qwen3:8b
 
-前端会自动读取：
+LLM_ENDPOINT=http://127.0.0.1:11434/v1/chat/completions \
+LLM_MODEL=qwen3:8b \
+LLM_LABEL=Qwen3-8B \
+node server.mjs
+```
 
-- 当前城市。
-- 当前结果视图：综合错配、人群轨迹或需求热力。
-- Ratio、Grid、IGP、降雨情景和当前推演步数。
-- 根据结果视图整理出的错配摘要、短板形态和规划风险。
-- 用户在追问框输入的问题。
+浏览器访问 `http://127.0.0.1:4182`。网页和 `/api/advice` 由同一个服务提供，模型端口不会直接暴露给浏览器。
 
-后续如果有真实错配指标，可以直接把高缺口网格数、设施覆盖率、灾点数量、人口规模、迭代次数等字段加到 `planningContext()`，模型回答会随上下文更新。
+## 本机运行 DeepSeek
+
+资源较有限的机器可先使用蒸馏版本：
+
+```bash
+ollama pull deepseek-r1:14b
+
+LLM_ENDPOINT=http://127.0.0.1:11434/v1/chat/completions \
+LLM_MODEL=deepseek-r1:14b \
+LLM_LABEL=DeepSeek-R1-14B \
+node server.mjs
+```
+
+## GPU 服务器运行 Qwen 或 DeepSeek
+
+vLLM 可直接提供 OpenAI-compatible 接口：
+
+```bash
+vllm serve Qwen/Qwen3-8B --host 127.0.0.1 --port 8000
+
+LLM_BASE_URL=http://127.0.0.1:8000/v1 \
+LLM_MODEL=Qwen/Qwen3-8B \
+node server.mjs
+```
+
+DeepSeek 蒸馏模型同样可以替换模型名称后运行。模型大小、量化方式和并行参数应按显存条件确定。
+
+## 公网部署
+
+GitHub Pages 只能托管静态文件，无法在服务器侧保存密钥，也不能访问某台电脑上的 `localhost`。要让公众使用本地或私有模型，应把 `server.mjs` 与模型服务部署在同一台云服务器或同一内网：
+
+- 公网只开放网站端口或 HTTPS 反向代理。
+- Ollama 的 `11434` 或 vLLM 的 `8000` 只监听内网或本机。
+- 浏览器只访问同源 `/api/advice`，不接触模型密钥和模型端口。
+
+## 当前模型上下文
+
+前端会自动发送当前城市、结果视图、人口结构、分析网格、感知范围、当前步数、人口规模、潜在淹没区和系统生成的结果摘要。现有数据尚未包含逐网格的真实错配指数、设施容量和覆盖率，因此语言模型目前能解释已有参数与推演状态，但不能替代真实错配数据。拿到这些指标后，应直接扩展 `planningContext()`，再让模型生成片区级建议。

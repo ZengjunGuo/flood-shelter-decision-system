@@ -50,10 +50,6 @@
             <span>形成短板诊断、设施优化和建设优先级建议。</span>
           </p>
           <p class="support">服务超大城市避难设施专项规划、平急两用公共设施布局和近期建设项目安排。</p>
-          <div class="terminal">
-            <code>$ shelter-priority --grid 1km</code>
-            <button type="button" data-copy>复制</button>
-          </div>
           <div class="actions">
             <a class="primary" href="#console">进入系统 <i class="ph ph-arrow-right"></i></a>
             <a class="secondary" href="#model">方法框架 <i class="ph ph-arrow-right"></i></a>
@@ -63,10 +59,10 @@
         <div class="hero-collage" aria-label="系统视觉拼贴">
           <article class="code-card">
             <code>
-              <span>risk layer: flood exposure</span>
-              <span>demand: resident + commuter response</span>
-              <span>supply: shelter + public facility</span>
-              <span>decision: add / retrofit / coordinate</span>
+              <span>情景：百年一遇城市内涝</span>
+              <span>需求：灾时人群动态流入</span>
+              <span>供给：避难场所与公共设施</span>
+              <span>输出：短板片区与投资时序</span>
             </code>
           </article>
 
@@ -291,12 +287,12 @@
 
       <section class="case insight-lab" id="case">
         <div class="case-head">
-          <h2>错配诊断与规划建议</h2>
-          <p>将当前推演结果转成片区判断、设施配置和实施时序，并支持继续追问。</p>
+          <h2><span>错配诊断</span><span>与规划建议</span></h2>
+          <p>推演完成后，结合动态需求、设施容量和空间错配，形成片区判断、配置建议与实施时序。</p>
         </div>
         <div class="advisor-board">
           <article class="advisor-status">
-            <span class="advisor-label">当前结果</span>
+            <span class="advisor-label">本次推演</span>
             <strong data-advice-city>成都</strong>
             <p data-advice-context>运行当前视图后，系统读取供需错配结果并形成规划建议。</p>
             <div class="advisor-facts">
@@ -309,10 +305,10 @@
           <article class="advice-report">
             <div class="advice-head">
               <div>
-                <span>结构化建议</span>
+                <span>规划判断</span>
                 <small data-advice-model-state>等待推演结果</small>
               </div>
-              <button type="button" data-generate-advice>读取当前结果</button>
+              <button type="button" data-generate-advice>分析当前结果</button>
             </div>
             <div class="advice-output is-pending" data-advice-output>
               <p>先在上方选择城市和结果视图，点击运行推演后生成本次规划建议。</p>
@@ -321,14 +317,14 @@
 
           <article class="advice-query">
             <div>
-              <span>追问</span>
+              <span>结果问答</span>
               <small data-advice-answer-state>等待问题</small>
-              <h3>把结果转成规划语言</h3>
+              <h3><span>继续追问</span><span>本次推演</span></h3>
             </div>
             <form data-advice-form>
               <label for="adviceQuestion">输入问题</label>
               <textarea id="adviceQuestion" data-advice-input rows="4" placeholder="例如：哪些片区应优先纳入近期建设项目？"></textarea>
-              <button type="submit">提交问题</button>
+              <button type="submit">发送</button>
             </form>
             <div class="advice-answer" data-advice-answer>
               <p>运行推演后，可围绕优先级、设施类型、平急两用和实施时序继续询问。</p>
@@ -339,51 +335,104 @@
 
       <section class="decision" id="decision">
         <div class="decision-head">
-          <div>
-            <span class="section-label">DECISION</span>
-            <h2>配置方案板</h2>
-          </div>
+          <h2><span>从错配诊断</span><span>到规划实施</span></h2>
+          <p>供需错配结果通过成本效益拐点确定配置范围，再转成专项规划、项目库和财政计划可直接使用的成果。</p>
         </div>
 
-        <div class="decision-layout">
+        <div class="decision-evidence">
           <figure class="benefit-panel">
             <img src="./assets/project/benefit-curve.jpg" alt="应急避难场所配置范围扩大时净收益和增长率变化曲线" />
+            <figcaption>配置范围扩大时，净收益持续增加；达到拐点后，边际增幅明显趋缓。</figcaption>
           </figure>
 
-          <div class="state-panel table-state" data-state="plan">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">输出</th>
-                  <th scope="col">依据</th>
-                  <th scope="col">策略</th>
-                  <th scope="col">结果</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><strong>短板片区优先</strong><span>设施增补与改造范围</span></td>
-                  <td>Kneedle 最优点</td>
-                  <td><span class="status active">增设或改造</span></td>
-                  <td>收益增长率 4.83%</td>
-                </tr>
-                <tr>
-                  <td><strong>收益-成本比</strong><span>多城市均值</span></td>
-                  <td>成本效益测算</td>
-                  <td><span class="status pending">财政排序</span></td>
-                  <td>BCR 34.40</td>
-                </tr>
-                <tr>
-                  <td><strong>长期韧性评估</strong><span>2050 情景</span></td>
-                  <td>SSP5-8.5 气候情景</td>
-                  <td><span class="status blocked">提前识别</span></td>
-                  <td>定位未来资源缺口</td>
-                </tr>
-              </tbody>
-            </table>
+          <article class="benefit-summary">
+            <div class="benefit-summary-head">
+              <span>成本效益最优范围</span>
+              <strong>30<small>%</small></strong>
+            </div>
+            <p>在全部候选片区中，优先覆盖匮乏程度最高的 30%。继续扩大配置范围时，净收益仍会增加，但边际增幅已明显趋缓。</p>
+            <dl class="benefit-metrics">
+              <div>
+                <dt>平均净收益</dt>
+                <dd>6.88 亿美元</dd>
+              </div>
+              <div>
+                <dt>拐点后收益增长率</dt>
+                <dd>4.83%</dd>
+              </div>
+              <div>
+                <dt>平均收益-成本比</dt>
+                <dd>34.40</dd>
+              </div>
+            </dl>
+          </article>
+        </div>
+
+        <div class="solution-outputs" aria-label="规划成果">
+          <article class="solution-output solution-output-primary">
+            <div class="solution-output-head">
+              <span>专项规划</span>
+              <i class="ph ph-map-trifold"></i>
+            </div>
+            <h3>重点片区图</h3>
+            <p>以连续高匮乏网格为基础，叠加设施可达性、洪涝暴露和人群流入方向，划定避难设施重点配置片区。</p>
+            <div class="solution-criteria">
+              <span>动态需求</span>
+              <span>设施容量</span>
+              <span>道路可达</span>
+              <span>洪涝暴露</span>
+            </div>
+          </article>
+
+          <article class="solution-output">
+            <div class="solution-output-head">
+              <span>近期项目库</span>
+              <i class="ph ph-buildings"></i>
+            </div>
+            <h3>设施增补与改造清单</h3>
+            <p>将空间缺口转成项目位置、服务对象、建设方式和容量要求，统筹新增避难场所、存量设施改造与平急两用功能转换。</p>
+          </article>
+
+          <article class="solution-output">
+            <div class="solution-output-head">
+              <span>财政计划</span>
+              <i class="ph ph-chart-line-up"></i>
+            </div>
+            <h3>分期投资安排</h3>
+            <p>以净收益拐点和收益-成本比安排实施时序，优先保障边际收益高、服务缺口集中且具备实施条件的项目。</p>
+          </article>
+        </div>
+
+        <div class="planning-interface">
+          <div>
+            <span>成果衔接</span>
+            <h3>直接服务规划编制与项目实施</h3>
+          </div>
+          <div class="planning-interface-list">
+            <article>
+              <i class="ph ph-map-pin-area"></i>
+              <div><strong>专项规划校核</strong><p>校核重点片区、设施服务半径和空间布局。</p></div>
+            </article>
+            <article>
+              <i class="ph ph-clipboard-text"></i>
+              <div><strong>近期项目入库</strong><p>形成建设方式、服务规模和实施条件明确的项目条目。</p></div>
+            </article>
+            <article>
+              <i class="ph ph-coins"></i>
+              <div><strong>年度资金安排</strong><p>依据成本效益与短板强度确定投资次序。</p></div>
+            </article>
           </div>
         </div>
       </section>
     </main>
+
+    <footer class="site-footer">
+      <p>基于人群响应行为模拟的城市内涝应急避难场所供需匹配与优化决策支持模型</p>
+      <nav aria-label="页脚导航">
+        <a href="#console">模拟控制台</a>
+        <a href="#case">规划建议</a>
+        <a href="#overview">返回首页</a>
+      </nav>
+    </footer>
   </body>
 </html>

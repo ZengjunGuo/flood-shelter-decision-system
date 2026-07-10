@@ -1,21 +1,27 @@
-# Machine Ops 系统模板
+# 城市内涝应急避难场所供需匹配与优化决策支持模型
 
-这是按用户提供的 Taste Skill 示例图重做的静态系统前端模板。
+静态前端包含方法说明、人群移动模拟控制台、错配诊断、规划问答与配置方案输出。城市参数和模拟素材位于 `app.js` 与 `assets/sim`。
 
-设计读法：
+## 本地预览
 
-- 页面类型：系统网页 / 运营工作台
-- 目标用户：运营、客服、质控和值班负责人
-- 视觉语言：浅纸面、产品官网、真实素材拼贴、浮动卡片、强排版
-- 参数：`DESIGN_VARIANCE 8`、`MOTION_INTENSITY 5`、`VISUAL_DENSITY 5`
+只查看页面：
 
-视觉来源：
+```bash
+python3 -m http.server 4182
+```
 
-- 参考图中的 Machine Bloom 页面：横向图片拼贴、纸面纹理、透明浮层、珊瑚色标签、荧光黄注册标记
-- Taste Skill 官网截图：浅色材质背景、胶囊导航、浮动视觉卡片、强标题层级
+同时使用规划语言模型代理：
 
-实现说明：
+```bash
+node server.mjs
+```
 
-- 生图工具连续被安全系统误判拒绝，因此当前版本改用真实素材。
-- 主视觉素材来自 Unsplash 的可免费使用图片，已下载到 `assets/fabric.jpg`，避免远程随机图跑偏。
-- 图标通过 Phosphor Icons CDN 加载。
+访问 `http://127.0.0.1:4182`。
+
+## 模型接入
+
+模型配置、Ollama、vLLM、DeepSeek 和 Qwen 的运行方式见 `MODEL_DEPLOYMENT.md`。
+
+## 公开版本
+
+`public-site` 是用于 GitHub Pages 的发布目录。静态预览会使用公开模型后备接口；私有或本地模型应通过同源 `/api/advice` 代理接入。

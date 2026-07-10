@@ -1,7 +1,49 @@
-const DEFAULT_MODEL = "Qwen/Qwen2.5-72B-Instruct";
+const DEFAULT_MODEL = "Qwen/Qwen3-8B";
 const HF_ROUTER_URL = "https://router.huggingface.co/v1/chat/completions";
 const PUBLIC_MODEL = "openai-fast";
 const PUBLIC_MODEL_URL = "https://text.pollinations.ai/openai";
+
+function normalizeChatEndpoint(value) {
+  const endpoint = String(value || "").trim().replace(/\/+$/, "");
+  if (!endpoint) {
+    return "";
+  }
+  if (endpoint.endsWith("/chat/completions")) {
+    return endpoint;
+  }
+  if (endpoint.endsWith("/v1")) {
+    return `${endpoint}/chat/completions`;
+  }
+  return `${endpoint}/v1/chat/completions`;
+}
+
+function modelProvider() {
+  const customEndpoint = normalizeChatEndpoint(process.env.LLM_ENDPOINT || process.env.LLM_BASE_URL);
+  if (customEndpoint) {
+    return {
+      endpoint: customEndpoint,
+      model: process.env.LLM_MODEL || DEFAULT_MODEL,
+      apiKey: process.env.LLM_API_KEY || "",
+      label: process.env.LLM_LABEL || process.env.LLM_MODEL || DEFAULT_MODEL,
+    };
+  }
+
+  if (process.env.HF_TOKEN) {
+    return {
+      endpoint: process.env.HF_ROUTER_URL || HF_ROUTER_URL,
+      model: process.env.HF_MODEL || DEFAULT_MODEL,
+      apiKey: process.env.HF_TOKEN,
+      label: process.env.HF_MODEL || DEFAULT_MODEL,
+    };
+  }
+
+  return {
+    endpoint: PUBLIC_MODEL_URL,
+    model: PUBLIC_MODEL,
+    apiKey: "",
+    label: "public-open-model",
+  };
+}
 
 function setCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -85,7 +127,6 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const token = process.env.HF_TOKEN;
   let payload;
   try {
     payload = await readJson(req);
@@ -98,10 +139,10 @@ module.exports = async function handler(req, res) {
   const mode = payload.mode === "question" ? "question" : "report";
   const context = payload.context ?? {};
   const question = String(payload.question ?? context.question ?? "").trim();
-  const model = process.env.HF_MODEL || DEFAULT_MODEL;
+  const provider = modelProvider();
 
   const body = {
-    model: token ? model : PUBLIC_MODEL,
+    model: provider.model,
     messages: [
       { role: "system", content: systemPrompt(mode) },
       {
@@ -114,11 +155,11 @@ module.exports = async function handler(req, res) {
   };
 
   try {
-    const response = await fetch(token ? process.env.HF_ROUTER_URL || HF_ROUTER_URL : PUBLIC_MODEL_URL, {
+    const response = await fetch(provider.endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
       },
       body: JSON.stringify(body),
     });
@@ -139,12 +180,15 @@ module.exports = async function handler(req, res) {
 
     if (parsed) {
       res.statusCode = 200;
-      res.json(parsed);
+      res.json({ ...parsed, _meta: { model: provider.label } });
       return;
     }
 
     res.statusCode = 200;
-    res.json(mode === "question" ? { answer: String(content).trim() } : { text: String(content).trim() });
+    res.json({
+      ...(mode === "question" ? { answer: String(content).trim() } : { text: String(content).trim() }),
+      _meta: { model: provider.label },
+    });
   } catch (error) {
     res.statusCode = 500;
     res.json({ error: "MODEL_PROXY_ERROR" });
